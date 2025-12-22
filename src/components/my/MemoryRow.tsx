@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import "./MemoryRow.css"
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface MemoryRowProps {
   addr: number

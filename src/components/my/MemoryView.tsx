@@ -14,6 +14,7 @@ export function TestApp() {
     getScrollElement: () => parentRef.current,
     estimateSize: () => 16,
     initialOffset: 16 * count / 2 - 24,
+    overscan: 20,
   });
 
   return (
