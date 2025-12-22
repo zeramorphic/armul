@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import React from 'react';
-import "./Test.css";
+import "./MemoryView.css";
 import MemoryRow from './MemoryRow';
 
 export function TestApp() {
