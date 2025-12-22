@@ -1,0 +1,12 @@
+.scrollable {
+    height: 100%;
+    overflow: auto;
+
+    /* Hide scrollbars */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollable::-webkit-scrollbar {
+    display: none;
+}

@@ -2,11 +2,34 @@
 @import "tw-animate-css";
 
 :root {
-  font-family: Inter, Arial, Helvetica, sans-serif;
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
+  color: #0f0f0f;
+  background-color: #f6f6f6;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+:root,
+body,
+#root {
+  height: 100%;
+  width: 100%;
 }
 
 .container {
+  margin: 0;
+  height: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -66,6 +89,7 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
+  --very-muted-foreground: oklch(0.6556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -100,6 +124,7 @@
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
+  --very-muted-foreground: oklch(0.800 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
