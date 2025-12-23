@@ -142,18 +142,14 @@ pub enum Instr {
     },
     /// Move to Register from Status (MRS).
     Mrs {
-        /// Where to transfer from:
-        /// - if false: the current program state register (CPSR);
-        /// - if true: the saved program state register (SPSR).
-        saved: bool,
+        /// Where to transfer from.
+        psr: Psr,
         target: Register,
     },
     /// Move to Status from Register (MSR).
     Msr {
-        /// Where to transfer to:
-        /// - if false: the current program state register (CPSR);
-        /// - if true: the saved program state register (SPSR).
-        saved: bool,
+        /// Where to transfer to.
+        psr: Psr,
         source: MsrSource,
     },
     /// Multiply (MUL) and Multiply-Accumulate (MLA).
@@ -428,6 +424,13 @@ impl Display for TransferSize {
     }
 }
 
+/// Program status register.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+pub enum Psr {
+    Cpsr,
+    Spsr,
+}
+
 impl Instr {
     /// Attempt to decode the given 32-bit value as an instruction.
     /// If this instruction could not be decoded, return `None`.
@@ -541,13 +544,21 @@ impl Instr {
                     if instr & (0b1_1011_1111 << 16) == 0b1_0000_1111 << 16 {
                         // This is an MRS instruction.
                         Some(Instr::Mrs {
-                            saved: instr & (1 << 22) != 0,
+                            psr: if instr & (1 << 22) == 0 {
+                                Psr::Cpsr
+                            } else {
+                                Psr::Spsr
+                            },
                             target: Register::from_u4(instr, 12),
                         })
                     } else if instr & (0b1_1011_1111_1111 << 12) == 0b1_0010_1000_1111 << 12 {
                         // This is an MSR flag instruction.
                         Some(Instr::Msr {
-                            saved: instr & (1 << 22) != 0,
+                            psr: if instr & (1 << 22) == 0 {
+                                Psr::Cpsr
+                            } else {
+                                Psr::Spsr
+                            },
                             source: if instr & (1 << 25) == 0 {
                                 // The source operand is a register.
                                 MsrSource::RegisterFlags(Register::from_u4(instr, 0))
@@ -564,7 +575,11 @@ impl Instr {
                         // the docs [here](https://mgba-emu.github.io/gbatek/#armopcodespsrtransfermrsmsr)
                         // say those bits are variable.
                         Some(Instr::Msr {
-                            saved: instr & (1 << 22) != 0,
+                            psr: if instr & (1 << 22) == 0 {
+                                Psr::Cpsr
+                            } else {
+                                Psr::Spsr
+                            },
                             source: MsrSource::Register(Register::from_u4(instr, 0)),
                         })
                     } else {
@@ -730,20 +745,18 @@ impl Instr {
                 }
                 write!(f, ",{op2}")?;
             }
-            Instr::Mrs { saved, target } => {
+            Instr::Mrs { psr, target } => {
                 write!(f, "MRS{cond} {target:?},")?;
-                if *saved {
-                    write!(f, "SPSR")?;
-                } else {
-                    write!(f, "CPSR")?;
+                match psr {
+                    Psr::Cpsr => write!(f, "CPSR")?,
+                    Psr::Spsr => write!(f, "SPSR")?,
                 }
             }
-            Instr::Msr { saved, source } => {
+            Instr::Msr { psr, source } => {
                 write!(f, "MSR{cond} ")?;
-                if *saved {
-                    write!(f, "SPSR")?;
-                } else {
-                    write!(f, "CPSR")?;
+                match psr {
+                    Psr::Cpsr => write!(f, "CPSR")?,
+                    Psr::Spsr => write!(f, "SPSR")?,
                 }
                 match source {
                     MsrSource::Register(register) => {

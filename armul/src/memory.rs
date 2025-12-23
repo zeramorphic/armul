@@ -1,6 +1,9 @@
 //! Virtualises a full 32-bit (4 GiB) address space using pages.
 
-use std::ops::{Index, IndexMut};
+use std::{
+    fmt::Debug,
+    ops::{Index, IndexMut},
+};
 
 /// Virtualises a full 32-bit address space using pages.
 /// The default value at every address is zero.
@@ -8,6 +11,12 @@ use std::ops::{Index, IndexMut};
 #[derive(Default)]
 pub struct Memory {
     root: PageRoot,
+}
+
+impl Debug for Memory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<memory using {} x 4KiB pages>", self.count_pages())
+    }
 }
 
 impl Memory {
@@ -33,6 +42,17 @@ impl Memory {
     pub fn set_word_aligned(&mut self, addr: u32, value: u32) {
         let (a, b, c, _) = to_indices(addr);
         self.root[a].get_or_insert_default()[b].get_or_insert_default()[c] = value;
+    }
+
+    /// Return the number of pages in use to represent the memory of this processor.
+    pub fn count_pages(&self) -> usize {
+        1 + self
+            .root
+            .entries
+            .iter()
+            .filter_map(Option::as_ref)
+            .map(|dir| 1 + dir.entries.iter().filter_map(Option::as_ref).count())
+            .sum::<usize>()
     }
 }
 
