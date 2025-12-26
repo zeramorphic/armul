@@ -3,6 +3,7 @@ pub mod memory;
 pub mod mode;
 pub mod processor;
 pub mod registers;
+pub mod assemble;
 
 #[cfg(test)]
 mod tests {

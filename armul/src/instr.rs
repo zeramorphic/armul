@@ -1,6 +1,6 @@
 //! Defines the ARM instruction set.
 
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -84,6 +84,31 @@ impl Display for Cond {
         match self {
             Cond::AL => Ok(()),
             _ => write!(f, "{self:?}"),
+        }
+    }
+}
+
+impl FromStr for Cond {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "EQ" => Ok(Cond::EQ),
+            "NE" => Ok(Cond::NE),
+            "CS" => Ok(Cond::CS),
+            "CC" => Ok(Cond::CC),
+            "MI" => Ok(Cond::MI),
+            "PL" => Ok(Cond::PL),
+            "VS" => Ok(Cond::VS),
+            "VC" => Ok(Cond::VC),
+            "HI" => Ok(Cond::HI),
+            "LS" => Ok(Cond::LS),
+            "GE" => Ok(Cond::GE),
+            "LT" => Ok(Cond::LT),
+            "GT" => Ok(Cond::GT),
+            "LE" => Ok(Cond::LE),
+            "AL" | "" => Ok(Cond::AL),
+            _ => Err(()),
         }
     }
 }
