@@ -15,7 +15,7 @@ mod tests {
     fn test() {
         let mut proc = Processor::default();
         let mut listener = TestProcessorListener::default();
-        let (cond, instr) = Instr::decode(0xE3A0DA01).unwrap();
+        proc.memory_mut().set_word_aligned(0x0, 0xE3A0DA01);
         proc.try_execute(&mut listener).unwrap();
         panic!("{listener:#?}\n{proc:?}");
     }

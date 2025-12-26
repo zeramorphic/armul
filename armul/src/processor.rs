@@ -1,7 +1,7 @@
 //! A model of the ARM7TDMI processor.
 
 use crate::{
-    instr::{Cond, DataOp, DataOperand, Instr, Register, Shift, ShiftAmount, ShiftType},
+    instr::{Cond, DataOp, DataOperand, Instr, Psr, Register, Shift, ShiftAmount, ShiftType},
     memory::Memory,
     registers::Registers,
 };
@@ -64,107 +64,7 @@ impl Processor {
                 op1,
                 op2,
             } => {
-                let val1 = self.registers.get(op1);
-                let (val2, barrel_carry) = self.evaluate_operand(op2)?;
-
-                let mut carry = false;
-                let result =
-                    match op {
-                        DataOp::And | DataOp::Tst => val1 & val2,
-                        DataOp::Eor | DataOp::Teq => val1 ^ val2,
-                        DataOp::Sub | DataOp::Cmp => {
-                            if let Some(v) = val1.checked_sub(val2) {
-                                v
-                            } else {
-                                carry = true;
-                                val1.wrapping_sub(val2)
-                            }
-                        }
-                        DataOp::Rsb => {
-                            if let Some(v) = val2.checked_sub(val1) {
-                                v
-                            } else {
-                                carry = true;
-                                val2.wrapping_sub(val1)
-                            }
-                        }
-                        DataOp::Add | DataOp::Cmn => {
-                            if let Some(v) = val1.checked_add(val2) {
-                                v
-                            } else {
-                                carry = true;
-                                val1.wrapping_add(val2)
-                            }
-                        }
-                        DataOp::Adc => {
-                            if let Some(v) = val1.checked_add(val2).and_then(|x| x.checked_add(1)) {
-                                v
-                            } else {
-                                carry = true;
-                                val1.wrapping_add(val2).wrapping_add(1)
-                            }
-                        }
-                        DataOp::Sbc => {
-                            if let Some(v) = val1.checked_sub(val2).and_then(|x| {
-                                x.checked_sub(if self.registers.carry() { 0 } else { 1 })
-                            }) {
-                                v
-                            } else {
-                                carry = true;
-                                val1.wrapping_add(val2)
-                                    .wrapping_add(1)
-                                    .wrapping_sub(if self.registers.carry() { 0 } else { 1 })
-                            }
-                        }
-                        DataOp::Rsc => {
-                            if let Some(v) = val2.checked_sub(val1).and_then(|x| {
-                                x.checked_sub(if self.registers.carry() { 0 } else { 1 })
-                            }) {
-                                v
-                            } else {
-                                carry = true;
-                                val2.wrapping_add(val1)
-                                    .wrapping_add(1)
-                                    .wrapping_sub(if self.registers.carry() { 0 } else { 1 })
-                            }
-                        }
-                        DataOp::Orr => val1 | val2,
-                        DataOp::Mov => val2,
-                        DataOp::Bic => val1 & !val2,
-                        DataOp::Mvn => !val2,
-                    };
-
-                if set_condition_codes {
-                    match op {
-                        DataOp::And
-                        | DataOp::Eor
-                        | DataOp::Tst
-                        | DataOp::Teq
-                        | DataOp::Orr
-                        | DataOp::Mov
-                        | DataOp::Bic
-                        | DataOp::Mvn => {
-                            // This is a logical operation.
-                            self.registers.set_carry(barrel_carry);
-                            self.registers.set_zero(result == 0);
-                            self.registers.set_negative(result & (1 << 31) != 0);
-                        }
-                        DataOp::Sub
-                        | DataOp::Rsb
-                        | DataOp::Add
-                        | DataOp::Adc
-                        | DataOp::Sbc
-                        | DataOp::Rsc
-                        | DataOp::Cmp
-                        | DataOp::Cmn => {
-                            // This is an arithmetic operation.
-                            // TODO: How exactly does the overflow flag work?
-                            todo!()
-                        }
-                    }
-                }
-
-                todo!()
+                self.execute_data_processing(pc, set_condition_codes, op, dest, op1, op2, listener)
             }
             Instr::Mrs { psr, target } => todo!(),
             Instr::Msr { psr, source } => todo!(),
@@ -213,16 +113,170 @@ impl Processor {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    fn execute_data_processing(
+        &mut self,
+        pc: u32,
+        set_condition_codes: bool,
+        op: DataOp,
+        dest: Register,
+        op1: Register,
+        op2: DataOperand,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        listener.cycle(Cycle::Seq, 1, pc);
+        let pc_offset = if op2.is_register_specified_shift() {
+            listener.cycle(Cycle::Internal, 1, pc);
+            12
+        } else {
+            8
+        };
+        let val1 = self.registers.get_pc_offset(op1, pc_offset);
+        let (val2, barrel_carry) = self.evaluate_operand(op2, pc_offset)?;
+
+        let carry_value = if self.registers.carry() { 1 } else { 0 };
+        let neg_carry_value = if self.registers.carry() { 0 } else { 1 };
+        let mut carry = false;
+        let result = match op {
+            DataOp::And | DataOp::Tst => val1 & val2,
+            DataOp::Eor | DataOp::Teq => val1 ^ val2,
+            DataOp::Sub | DataOp::Cmp => {
+                if let Some(v) = val1.checked_sub(val2) {
+                    v
+                } else {
+                    carry = true;
+                    val1.wrapping_sub(val2)
+                }
+            }
+            DataOp::Rsb => {
+                if let Some(v) = val2.checked_sub(val1) {
+                    v
+                } else {
+                    carry = true;
+                    val2.wrapping_sub(val1)
+                }
+            }
+            DataOp::Add | DataOp::Cmn => {
+                if let Some(v) = val1.checked_add(val2) {
+                    v
+                } else {
+                    carry = true;
+                    val1.wrapping_add(val2)
+                }
+            }
+            DataOp::Adc => {
+                if let Some(v) = val1
+                    .checked_add(val2)
+                    .and_then(|x| x.checked_add(carry_value))
+                {
+                    v
+                } else {
+                    carry = true;
+                    val1.wrapping_add(val2).wrapping_add(carry_value)
+                }
+            }
+            DataOp::Sbc => {
+                if let Some(v) = val1
+                    .checked_sub(val2)
+                    .and_then(|x| x.checked_sub(neg_carry_value))
+                {
+                    v
+                } else {
+                    carry = true;
+                    val1.wrapping_sub(val2).wrapping_sub(neg_carry_value)
+                }
+            }
+            DataOp::Rsc => {
+                if let Some(v) = val2
+                    .checked_sub(val1)
+                    .and_then(|x| x.checked_sub(neg_carry_value))
+                {
+                    v
+                } else {
+                    carry = true;
+                    val2.wrapping_sub(val1).wrapping_sub(neg_carry_value)
+                }
+            }
+            DataOp::Orr => val1 | val2,
+            DataOp::Mov => val2,
+            DataOp::Bic => val1 & !val2,
+            DataOp::Mvn => !val2,
+        };
+
+        if set_condition_codes {
+            if dest == Register::R15 {
+                match self.registers.mode().and_then(|m| Psr::Spsr.physical(m)) {
+                    Some(spsr) => *self.registers.cpsr_mut() = self.registers.get_physical(spsr),
+                    None => return Err(ProcessorError::NoSpsr),
+                }
+            } else {
+                match op {
+                    DataOp::And
+                    | DataOp::Eor
+                    | DataOp::Tst
+                    | DataOp::Teq
+                    | DataOp::Orr
+                    | DataOp::Mov
+                    | DataOp::Bic
+                    | DataOp::Mvn => {
+                        // This is a logical operation.
+                        self.registers.set_carry(barrel_carry);
+                        self.registers.set_zero(result == 0);
+                        self.registers.set_negative(result & (1 << 31) != 0);
+                    }
+                    DataOp::Sub
+                    | DataOp::Rsb
+                    | DataOp::Add
+                    | DataOp::Adc
+                    | DataOp::Sbc
+                    | DataOp::Rsc
+                    | DataOp::Cmp
+                    | DataOp::Cmn => {
+                        // This is an arithmetic operation.
+                        self.registers.set_overflow(
+                            (val1 & (1 << 31) == val2 & (1 << 31))
+                                && (val1 & (1 << 31) != result & (1 << 31)),
+                        );
+                        self.registers.set_carry(carry);
+                        self.registers.set_zero(result == 0);
+                        self.registers.set_negative(result & (1 << 31) != 0);
+                    }
+                }
+            }
+        }
+
+        match op {
+            DataOp::Tst | DataOp::Teq | DataOp::Cmp | DataOp::Cmn => {}
+            _ => *self.registers_mut().get_mut(dest) = result,
+        }
+
+        if dest == Register::R15 {
+            listener.stall(pc);
+        }
+
+        Ok(())
+    }
+
     /// Evaluate the given operand to a data processing instruction.
     /// The output is given together with a carry out bit from the barrel shifter.
     /// If no shift operation was needed, we return the current value of the
     /// carry flag in the CPSR.
-    fn evaluate_operand(&self, operand: DataOperand) -> Result<(u32, bool), ProcessorError> {
+    ///
+    /// If the register was used to specify the shift amount, the PC will be
+    /// 12 bytes ahead of the current instruction. Else it will be 8 bytes ahead.
+    fn evaluate_operand(
+        &self,
+        operand: DataOperand,
+        pc_offset: u32,
+    ) -> Result<(u32, bool), ProcessorError> {
         match operand {
             DataOperand::Constant(c) => Ok((c, self.registers.carry())),
-            DataOperand::Register(register, shift) => {
-                self.apply_shift(self.registers.get(register), shift)
-            }
+            DataOperand::Register(register, shift) => self.apply_shift(
+                self.registers.get_pc_offset(register, pc_offset),
+                shift,
+                pc_offset,
+            ),
         }
     }
 
@@ -231,11 +285,18 @@ impl Processor {
     /// The RRX (rotate right extended) shift type uses the C flag as a carry in.
     /// LSL #0 is a special case where the carry out bit is the same as the
     /// current C flag.
-    fn apply_shift(&self, value: u32, shift: Shift) -> Result<(u32, bool), ProcessorError> {
+    fn apply_shift(
+        &self,
+        value: u32,
+        shift: Shift,
+        pc_offset: u32,
+    ) -> Result<(u32, bool), ProcessorError> {
         let shift_amount = match shift.shift_amount {
             ShiftAmount::Constant(n) => n,
             ShiftAmount::Register(Register::R15) => return Err(ProcessorError::PcUsedInShift),
-            ShiftAmount::Register(register) => self.registers.get(register) as u8,
+            ShiftAmount::Register(register) => {
+                self.registers.get_pc_offset(register, pc_offset) as u8
+            }
         };
         match (shift.shift_type, shift_amount) {
             (_, 0) => {
@@ -289,6 +350,9 @@ pub trait ProcessorListener {
     /// For instrumentation purposes, we track the program counter
     /// at which the cycle took place.
     fn cycle(&mut self, cycle: Cycle, count: usize, pc: u32);
+    /// Simulate a pipeline stall.
+    /// This takes 1S + 1N cycles to recover.
+    fn stall(&mut self, pc: u32);
 }
 
 /// One of the four cycle types in the CPU.
@@ -322,6 +386,9 @@ pub enum ProcessorError {
     /// The program counter register (PC, or R15) was used in a register
     /// specified shift amount.
     PcUsedInShift,
+    /// The SPSR was accessed in a data processing operation,
+    /// but one was not present in the current mode.
+    NoSpsr,
 }
 
 #[cfg(test)]
@@ -344,6 +411,11 @@ pub mod test {
                 Cycle::Internal => self.i_cycles += count,
                 Cycle::Coprocessor => {}
             }
+        }
+
+        fn stall(&mut self, _pc: u32) {
+            self.n_cycles += 1;
+            self.s_cycles += 1;
         }
     }
 }

@@ -37,6 +37,12 @@ impl Register {
     }
 }
 
+impl Display for Register {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
 /// A condition to execute an instruction on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive)]
 #[repr(u8)]
@@ -315,7 +321,16 @@ impl Display for DataOperand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DataOperand::Constant(i) => write!(f, "#{i}"),
-            DataOperand::Register(register, shift) => write!(f, "{register:?}{shift}"),
+            DataOperand::Register(register, shift) => write!(f, "{register}{shift}"),
+        }
+    }
+}
+
+impl DataOperand {
+    pub fn is_register_specified_shift(self) -> bool {
+        match self {
+            DataOperand::Constant(_) => false,
+            DataOperand::Register(_, _) => true,
         }
     }
 }
@@ -378,7 +393,7 @@ impl Display for ShiftAmount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ShiftAmount::Constant(i) => write!(f, "#{i}"),
-            ShiftAmount::Register(register) => write!(f, "{register:?}"),
+            ShiftAmount::Register(register) => write!(f, "{register}"),
         }
     }
 }
@@ -710,7 +725,7 @@ impl Instr {
     pub fn write(&self, cond: Cond, f: &mut impl std::fmt::Write) -> std::fmt::Result {
         match self {
             Instr::BranchExchange { operand } => {
-                write!(f, "BX{cond} {operand:?}")?;
+                write!(f, "BX{cond} {operand}")?;
             }
             Instr::Branch { link, offset } => {
                 write!(f, "B")?;
@@ -734,19 +749,19 @@ impl Instr {
                 }
                 match op {
                     DataOp::Mov | DataOp::Mvn => {
-                        write!(f, " {dest:?}")?;
+                        write!(f, " {dest}")?;
                     }
                     DataOp::Cmp | DataOp::Cmn | DataOp::Teq | DataOp::Tst => {
-                        write!(f, " {op1:?}")?;
+                        write!(f, " {op1}")?;
                     }
                     _ => {
-                        write!(f, " {dest:?},{op1:?}")?;
+                        write!(f, " {dest},{op1}")?;
                     }
                 }
                 write!(f, ",{op2}")?;
             }
             Instr::Mrs { psr, target } => {
-                write!(f, "MRS{cond} {target:?},")?;
+                write!(f, "MRS{cond} {target},")?;
                 match psr {
                     Psr::Cpsr => write!(f, "CPSR")?,
                     Psr::Spsr => write!(f, "SPSR")?,
@@ -760,10 +775,10 @@ impl Instr {
                 }
                 match source {
                     MsrSource::Register(register) => {
-                        write!(f, ",{register:?}")?;
+                        write!(f, ",{register}")?;
                     }
                     MsrSource::RegisterFlags(register) => {
-                        write!(f, "_flg,{register:?}")?;
+                        write!(f, "_flg,{register}")?;
                     }
                     MsrSource::Flags(c) => {
                         write!(f, "_flg,#{c}")?;
@@ -782,14 +797,14 @@ impl Instr {
                     if *set_condition_codes {
                         write!(f, "S")?;
                     }
-                    write!(f, "{dest:?},{op1:?},{op2:?},{addend:?}")?;
+                    write!(f, "{dest},{op1},{op2},{addend}")?;
                 }
                 None => {
                     write!(f, "MUL{cond}")?;
                     if *set_condition_codes {
                         write!(f, "S")?;
                     }
-                    write!(f, "{dest:?},{op1:?},{op2:?}")?;
+                    write!(f, "{dest},{op1},{op2}")?;
                 }
             },
             Instr::MultiplyLong {
@@ -815,7 +830,7 @@ impl Instr {
                 if *set_condition_codes {
                     write!(f, "S")?;
                 }
-                write!(f, " {dest_lo:?},{dest_hi:?},{op1:?},{op2:?}")?;
+                write!(f, " {dest_lo},{dest_hi},{op1},{op2}")?;
             }
             Instr::SingleTransfer {
                 kind,
@@ -839,7 +854,7 @@ impl Instr {
                 if *write_back && !*pre_index {
                     write!(f, "T")?;
                 }
-                write!(f, " {data_register:?},[{base_register:?}")?;
+                write!(f, " {data_register},[{base_register}")?;
                 if !*pre_index {
                     write!(f, "]")?;
                 }
@@ -857,7 +872,7 @@ impl Instr {
                         if !*offset_positive {
                             write!(f, "-")?;
                         }
-                        write!(f, "{register:?}{shift}")?;
+                        write!(f, "{register}{shift}")?;
                     }
                 }
                 if *pre_index {
@@ -895,7 +910,7 @@ impl Instr {
                     (TransferKind::Load, false, true) => "FD",
                     (TransferKind::Load, false, false) => "FA",
                 };
-                write!(f, "{offset} {base_register:?}")?;
+                write!(f, "{offset} {base_register}")?;
                 if *write_back {
                     write!(f, "!")?;
                 }
@@ -921,7 +936,7 @@ impl Instr {
                 if *byte {
                     write!(f, "B")?;
                 }
-                write!(f, " {dest:?},{source:?},[{base:?}]")?;
+                write!(f, " {dest},{source},[{base}]")?;
             }
             Instr::SoftwareInterrupt { comment } => {
                 write!(f, "SWI{cond} {comment}")?;

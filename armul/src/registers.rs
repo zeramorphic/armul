@@ -130,6 +130,17 @@ impl Registers {
         self.get_physical(register.physical(self.mode().unwrap_or(Mode::Usr)))
     }
 
+    /// Get the value of the given register as in `Self::get`.
+    /// But if `register` is `R15`, additionally add the given offset.
+    pub fn get_pc_offset(&self, register: Register, pc_offset: u32) -> u32 {
+        self.get(register)
+            .wrapping_add(if register == Register::R15 {
+                pc_offset
+            } else {
+                0
+            })
+    }
+
     /// Using the current mode of the processor, mutably borrow the given
     /// virtual register. In case of ill-defined mode, we default to the user mode.
     pub fn get_mut(&mut self, register: Register) -> &mut u32 {
