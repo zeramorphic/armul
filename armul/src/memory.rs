@@ -39,9 +39,21 @@ impl Memory {
             .unwrap_or_default()
     }
 
+    pub fn get_words_aligned(&self, addr: u32, result: &mut [u32]) {
+        for (offset, value) in result.iter_mut().enumerate() {
+            *value = self.get_word_aligned(addr.wrapping_add(4 * offset as u32))
+        }
+    }
+
     pub fn set_word_aligned(&mut self, addr: u32, value: u32) {
         let (a, b, c, _) = to_indices(addr);
         self.root[a].get_or_insert_default()[b].get_or_insert_default()[c] = value;
+    }
+
+    pub fn set_words_aligned(&mut self, addr: u32, values: &[u32]) {
+        for (offset, value) in values.iter().enumerate() {
+            self.set_word_aligned(addr.wrapping_add(4 * offset as u32), *value);
+        }
     }
 
     /// Return the number of pages in use to represent the memory of this processor.

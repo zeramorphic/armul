@@ -1,6 +1,8 @@
 //! The ARM7TDMI supports seven modes of operation.
 //! This file describes these modes.
 
+use std::fmt::Display;
+
 pub enum Mode {
     /// THe normal ARM program execution state.
     Usr,
@@ -16,4 +18,18 @@ pub enum Mode {
     System,
     /// Entered when an undefined instruction is executed.
     Undefined,
+}
+
+impl Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Mode::Usr => write!(f, "usr"),
+            Mode::Fiq => write!(f, "fiq"),
+            Mode::Irq => write!(f, "irq"),
+            Mode::Supervisor => write!(f, "svc"),
+            Mode::Abort => write!(f, "abt"),
+            Mode::System => write!(f, "sys"),
+            Mode::Undefined => write!(f, "und"),
+        }
+    }
 }

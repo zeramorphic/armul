@@ -1,5 +1,7 @@
 //! Describes the physical registers in the processor's hardware.
 
+use std::fmt::Display;
+
 use num_derive::FromPrimitive;
 
 use crate::{
@@ -111,7 +113,60 @@ pub struct Registers {
 
 impl Default for Registers {
     fn default() -> Self {
-        Self { regs: [0; 37] }
+        let mut this = Self { regs: [0; 37] };
+        // Set supervisor mode with IRQ disabled.
+        *this.cpsr_mut() = 0b10010011;
+        this
+    }
+}
+
+impl Display for Registers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Mode {}  Flags ",
+            self.mode()
+                .map_or_else(|| "???".to_owned(), |x| x.to_string())
+        )?;
+        if self.negative() {
+            write!(f, "N")?;
+        }
+        if self.zero() {
+            write!(f, "Z")?;
+        }
+        if self.carry() {
+            write!(f, "C")?;
+        }
+        if self.overflow() {
+            write!(f, "V")?;
+        }
+        if self.irq_disable() {
+            write!(f, "I")?;
+        }
+        if self.fiq_disable() {
+            write!(f, "F")?;
+        }
+        if self.thumb_state() {
+            write!(f, "T")?;
+        }
+        writeln!(f)?;
+        write!(f, "R0  {:0>8X}  ", self.get(Register::R0))?;
+        write!(f, "R1  {:0>8X}  ", self.get(Register::R1))?;
+        write!(f, "R2  {:0>8X}  ", self.get(Register::R2))?;
+        writeln!(f, "R3  {:0>8X}", self.get(Register::R3))?;
+        write!(f, "R4  {:0>8X}  ", self.get(Register::R4))?;
+        write!(f, "R5  {:0>8X}  ", self.get(Register::R5))?;
+        write!(f, "R6  {:0>8X}  ", self.get(Register::R6))?;
+        writeln!(f, "R7  {:0>8X}", self.get(Register::R7))?;
+        write!(f, "R8  {:0>8X}  ", self.get(Register::R8))?;
+        write!(f, "R9  {:0>8X}  ", self.get(Register::R9))?;
+        write!(f, "R10 {:0>8X}  ", self.get(Register::R10))?;
+        writeln!(f, "R11 {:0>8X}", self.get(Register::R11))?;
+        write!(f, "R12 {:0>8X}  ", self.get(Register::R12))?;
+        write!(f, "SP  {:0>8X}  ", self.get(Register::R13))?;
+        write!(f, "LR  {:0>8X}  ", self.get(Register::R14))?;
+        write!(f, "PC  {:0>8X}", self.get(Register::R15))?;
+        Ok(())
     }
 }
 
@@ -258,8 +313,8 @@ impl Registers {
 
 fn set_bit(value: &mut u32, bit: usize, set: bool) {
     if set {
-        *value &= !(1 << bit);
-    } else {
         *value |= 1 << bit;
+    } else {
+        *value &= !(1 << bit);
     }
 }

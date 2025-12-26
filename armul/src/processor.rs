@@ -1,7 +1,7 @@
 //! A model of the ARM7TDMI processor.
 
 use crate::{
-    instr::{Cond, DataOp, DataOperand, Instr, Psr, Register, Shift, ShiftAmount, ShiftType},
+    instr::{DataOp, DataOperand, Instr, Psr, Register, Shift, ShiftAmount, ShiftType},
     memory::Memory,
     registers::Registers,
 };
@@ -52,11 +52,12 @@ impl Processor {
             // According to page 10-19, unexecuted instructions
             // take one S-cycle.
             listener.cycle(Cycle::Seq, 1, pc);
+            return Ok(());
         }
 
         match instr {
             Instr::BranchExchange { operand } => todo!(),
-            Instr::Branch { link, offset } => todo!(),
+            Instr::Branch { link, offset } => self.execute_branch(pc, link, offset, listener),
             Instr::Data {
                 set_condition_codes,
                 op,
@@ -113,6 +114,29 @@ impl Processor {
         }
     }
 
+    #[inline]
+    fn execute_branch(
+        &mut self,
+        pc: u32,
+        link: bool,
+        offset: i32,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        listener.cycle(Cycle::Seq, 1, pc);
+        if link {
+            // Write the address of the next instruction into R14 (LR).
+            *self.registers.get_mut(Register::R14) =
+                self.registers.get(Register::R15).wrapping_add(4);
+        }
+        let pc_reg = self.registers.get_mut(Register::R15);
+        // Only add 4 bytes instead of the actual PC offset (8 bytes)
+        // because we're about to auto-increment the PC anyway at the
+        // end of this execution step.
+        *pc_reg = pc_reg.wrapping_add(4).wrapping_add_signed(offset);
+        listener.stall(pc);
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[inline]
     fn execute_data_processing(
@@ -132,29 +156,33 @@ impl Processor {
         } else {
             8
         };
-        let val1 = self.registers.get_pc_offset(op1, pc_offset);
-        let (val2, barrel_carry) = self.evaluate_operand(op2, pc_offset)?;
+        let mut val1 = self.registers.get_pc_offset(op1, pc_offset);
+        let (mut val2, barrel_carry) = self.evaluate_operand(op2, pc_offset)?;
 
         let carry_value = if self.registers.carry() { 1 } else { 0 };
-        let neg_carry_value = if self.registers.carry() { 0 } else { 1 };
         let mut carry = false;
         let result = match op {
             DataOp::And | DataOp::Tst => val1 & val2,
             DataOp::Eor | DataOp::Teq => val1 ^ val2,
             DataOp::Sub | DataOp::Cmp => {
-                if let Some(v) = val1.checked_sub(val2) {
+                // We implement subtraction by using the fact that
+                // a - b is the same as a + ~b + 1.
+                // We reassign to val2 to get correct behaviour of flags.
+                val2 = !val2;
+                if let Some(v) = val1.checked_add(val2).and_then(|x| x.checked_add(1)) {
                     v
                 } else {
                     carry = true;
-                    val1.wrapping_sub(val2)
+                    val1.wrapping_add(val2).wrapping_add(1)
                 }
             }
             DataOp::Rsb => {
-                if let Some(v) = val2.checked_sub(val1) {
+                val1 = !val1;
+                if let Some(v) = val2.checked_add(val1).and_then(|x| x.checked_add(1)) {
                     v
                 } else {
                     carry = true;
-                    val2.wrapping_sub(val1)
+                    val2.wrapping_add(val1).wrapping_add(1)
                 }
             }
             DataOp::Add | DataOp::Cmn => {
@@ -177,25 +205,29 @@ impl Processor {
                 }
             }
             DataOp::Sbc => {
+                // val1 - val2 + carry - 1
+                // is the same as val1 + ~val2 + carry.
+                val2 = !val2;
                 if let Some(v) = val1
-                    .checked_sub(val2)
-                    .and_then(|x| x.checked_sub(neg_carry_value))
+                    .checked_add(val2)
+                    .and_then(|x| x.checked_add(carry_value))
                 {
                     v
                 } else {
                     carry = true;
-                    val1.wrapping_sub(val2).wrapping_sub(neg_carry_value)
+                    val1.wrapping_add(val2).wrapping_add(carry_value)
                 }
             }
             DataOp::Rsc => {
-                if let Some(v) = val2
-                    .checked_sub(val1)
-                    .and_then(|x| x.checked_sub(neg_carry_value))
+                val1 = !val1;
+                if let Some(v) = val1
+                    .checked_add(val2)
+                    .and_then(|x| x.checked_add(carry_value))
                 {
                     v
                 } else {
                     carry = true;
-                    val2.wrapping_sub(val1).wrapping_sub(neg_carry_value)
+                    val1.wrapping_add(val2).wrapping_add(carry_value)
                 }
             }
             DataOp::Orr => val1 | val2,
@@ -203,6 +235,10 @@ impl Processor {
             DataOp::Bic => val1 & !val2,
             DataOp::Mvn => !val2,
         };
+
+        // println!(
+        //     "OPERATION: {op} {op1}={val1} {op2}={val2} {carry} {result} (flags = {set_condition_codes})"
+        // );
 
         if set_condition_codes {
             if dest == Register::R15 {
@@ -252,6 +288,9 @@ impl Processor {
         }
 
         if dest == Register::R15 {
+            // We need to decrement the PC by 4 bytes to
+            // take the auto-increment into account.
+            *self.registers_mut().get_mut(dest) = result.wrapping_sub(4);
             listener.stall(pc);
         }
 
