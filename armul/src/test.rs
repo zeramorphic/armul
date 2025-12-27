@@ -1,0 +1,147 @@
+//! Provides a test procedure for assembly routines.
+
+use std::collections::BTreeMap;
+
+use crate::{
+    assemble::{AssemblerError, AssemblerOutput, assemble},
+    instr::{Instr, Register},
+    processor::{Processor, test::TestProcessorListener},
+    registers::PhysicalRegister,
+};
+
+#[derive(Debug)]
+pub enum TestError {
+    AssemblerError(AssemblerError),
+    InvalidComment(String),
+    InvalidParams(&'static str, String),
+    StepsNotGiven,
+}
+
+pub fn test(src: &str) -> Result<(), TestError> {
+    let assembled = assemble(src).map_err(TestError::AssemblerError)?;
+    println!("assembled in {} passes", assembled.passes);
+
+    // Extract the test comments at the start of the file.
+    let mut steps = None;
+    let mut output = BTreeMap::<PhysicalRegister, u32>::new();
+    for line in src.lines() {
+        if let Some(comment) = line.trim_start().strip_prefix(";!") {
+            let comment = comment.trim();
+            let Some((kwd, params)) = comment.split_once(' ') else {
+                return Err(TestError::InvalidComment(comment.to_owned()));
+            };
+            let kwd = kwd.to_uppercase();
+            let mut kwd_found = false;
+            for (pattern, reg) in [
+                ("R0", PhysicalRegister::R0),
+                ("R1", PhysicalRegister::R1),
+                ("R2", PhysicalRegister::R2),
+                ("R3", PhysicalRegister::R3),
+                ("R4", PhysicalRegister::R4),
+                ("R5", PhysicalRegister::R5),
+                ("R6", PhysicalRegister::R6),
+                ("R7", PhysicalRegister::R7),
+                ("R8", PhysicalRegister::R8),
+                ("R9", PhysicalRegister::R9),
+                ("R10", PhysicalRegister::R10),
+                ("R11", PhysicalRegister::R11),
+                ("R12", PhysicalRegister::R12),
+                ("R13", PhysicalRegister::R13),
+                ("SP", PhysicalRegister::R13),
+                ("R14", PhysicalRegister::R14),
+                ("LR", PhysicalRegister::R14),
+                ("R15", PhysicalRegister::R15),
+                ("PC", PhysicalRegister::R15),
+                ("R8FIQ", PhysicalRegister::R8Fiq),
+                ("R9FIQ", PhysicalRegister::R9Fiq),
+                ("R10FIQ", PhysicalRegister::R10Fiq),
+                ("R11FIQ", PhysicalRegister::R11Fiq),
+                ("R12FIQ", PhysicalRegister::R12Fiq),
+                ("R13FIQ", PhysicalRegister::R13Fiq),
+                ("R14FIQ", PhysicalRegister::R14Fiq),
+                ("R13SVC", PhysicalRegister::R13Svc),
+                ("R14SVC", PhysicalRegister::R14Svc),
+                ("R13ABT", PhysicalRegister::R13Abt),
+                ("R14ABT", PhysicalRegister::R14Abt),
+                ("R13IRQ", PhysicalRegister::R13Irq),
+                ("R14IRQ", PhysicalRegister::R14Irq),
+                ("R13UND", PhysicalRegister::R13Und),
+                ("R14UND", PhysicalRegister::R14Und),
+                ("CPSR", PhysicalRegister::Cpsr),
+                ("SPSRFIQ", PhysicalRegister::SpsrFiq),
+                ("SPSRSVC", PhysicalRegister::SpsrSvc),
+                ("SPSRABT", PhysicalRegister::SpsrAbt),
+                ("SPSRIRQ", PhysicalRegister::SpsrIrq),
+                ("SPSRUND", PhysicalRegister::SpsrUnd),
+            ] {
+                if kwd == pattern {
+                    output.insert(reg, parse_param(&assembled, params)?);
+                    kwd_found = true;
+                    break;
+                }
+            }
+            if !kwd_found {
+                match kwd.as_ref() {
+                    "STEPS" => {
+                        steps = Some(
+                            params
+                                .parse::<usize>()
+                                .map_err(|x| TestError::InvalidParams("steps", x.to_string()))?,
+                        )
+                    }
+                    _ => return Err(TestError::InvalidComment(comment.to_owned())),
+                }
+            }
+        }
+    }
+
+    let Some(steps) = steps else {
+        return Err(TestError::StepsNotGiven);
+    };
+
+    let mut proc = Processor::default();
+    let mut listener = TestProcessorListener::default();
+    proc.memory_mut().set_words_aligned(0x0, &assembled.instrs);
+    for _ in 0..48 {
+        let pc = proc.registers().get(Register::R15);
+        println!();
+        println!("{}", proc.registers());
+        println!(
+            "About to execute {}",
+            Instr::decode(proc.memory().get_word_aligned(pc))
+                .map_or_else(|| "???".to_owned(), |(cond, i)| Instr::display(&i, cond))
+        );
+        proc.try_execute(&mut listener).unwrap();
+        // Advance the program counter.
+        *proc.registers_mut().get_mut(Register::R15) += 4;
+    }
+
+    println!("Terminated.");
+    println!("{listener:#?}");
+    println!("Final state:");
+    println!("{}", proc.registers());
+
+    // Assert that all of the results were as expected.
+    for (reg, value) in output {
+        assert_eq!(
+            proc.registers().get_physical(reg),
+            value,
+            "mismatch on register {reg:?}"
+        );
+    }
+
+    Ok(())
+}
+
+fn parse_param(assembled: &AssemblerOutput, params: &str) -> Result<u32, TestError> {
+    match params.parse::<u32>() {
+        Ok(x) => Ok(x),
+        Err(_) => {
+            // Try to parse it as a label instead.
+            match assembled.labels.get(&params.to_uppercase()) {
+                Some(offset) => Ok(*offset),
+                None => Err(TestError::InvalidParams("parameter", params.to_string())),
+            }
+        }
+    }
+}

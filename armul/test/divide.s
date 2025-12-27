@@ -1,3 +1,12 @@
+; A general-purpose division routine from the ARM data sheet.
+
+;! steps 48
+;! r0 0
+;! r1 1
+;! r2 6
+;! r3 6
+;! pc end
+
         mov r1,#37
         mov r2,#6
         mov r0,#1
@@ -13,3 +22,4 @@ div2    cmp r1,r2
         movs r0,r0,lsr#1
         movne r2,r2,lsr#1
         bne div2
+end

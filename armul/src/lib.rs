@@ -1,14 +1,18 @@
+pub mod assemble;
 pub mod instr;
 pub mod memory;
 pub mod mode;
 pub mod processor;
 pub mod registers;
+#[cfg(test)]
+pub mod test;
 
 #[cfg(test)]
 mod tests {
     use crate::{
         instr::{Instr, Register},
         processor::{Processor, test::TestProcessorListener},
+        test::TestError,
     };
 
     /// A division routine from the ARM7TDMI data sheet.
@@ -31,30 +35,7 @@ mod tests {
     ];
 
     #[test]
-    fn test() {
-        let mut proc = Processor::default();
-        let mut listener = TestProcessorListener::default();
-        proc.memory_mut().set_words_aligned(0x0, &DIVIDE);
-        for _ in 0..48 {
-            let pc = proc.registers().get(Register::R15);
-            println!();
-            println!("{}", proc.registers());
-            println!(
-                "About to execute {}",
-                Instr::decode(proc.memory().get_word_aligned(pc))
-                    .map_or_else(|| "???".to_owned(), |(cond, i)| Instr::display(&i, cond))
-            );
-            proc.try_execute(&mut listener).unwrap();
-            // Advance the program counter.
-            *proc.registers_mut().get_mut(Register::R15) += 4;
-        }
-        println!("{listener:#?}");
-        // Assert that the routine is finished.
-        assert_eq!(proc.registers().get(Register::R15), DIVIDE.len() as u32 * 4);
-        // Assert that we got the right result.
-        assert_eq!(proc.registers().get(Register::R0), 0);
-        assert_eq!(proc.registers().get(Register::R1), 1);
-        assert_eq!(proc.registers().get(Register::R2), 6);
-        assert_eq!(proc.registers().get(Register::R3), 6);
+    fn test() -> Result<(), TestError> {
+        crate::test::test(include_str!("../test/divide.s"))
     }
 }

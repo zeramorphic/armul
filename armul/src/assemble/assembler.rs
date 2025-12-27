@@ -50,6 +50,7 @@ fn single_pass(lines: &[AsmLine], output: &mut AssemblerOutput) -> Result<bool, 
     let mut anything_changed = false;
     for line in lines {
         match &line.contents {
+            AsmLineContents::Empty => {}
             AsmLineContents::Label(label) => {
                 let entry = output.labels.entry(label.to_owned()).or_default();
                 if *entry != program_counter {
@@ -60,7 +61,16 @@ fn single_pass(lines: &[AsmLine], output: &mut AssemblerOutput) -> Result<bool, 
             AsmLineContents::Instr(cond, asm_instr) => {
                 let instrs = assemble_instr(line.line_number, program_counter, asm_instr, output)?;
                 program_counter += 4 * instrs.len() as u32;
-                output.instrs.extend(instrs.into_iter().map(|i| (*cond, i)));
+                output.instrs.extend(
+                    instrs
+                        .into_iter()
+                        .map(|i| i.encode(*cond))
+                        .collect::<Result<Vec<u32>, LineError>>()
+                        .map_err(|error| AssemblerError {
+                            line_number: line.line_number,
+                            error,
+                        })?,
+                );
             }
         }
     }

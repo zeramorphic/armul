@@ -40,6 +40,18 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_line(&mut self, allow_labels: bool) -> ParseResult<Vec<AsmLine>> {
+        if let Ok(comment) = self.parse_comment() {
+            if comment.is_empty() {
+                return Ok(Vec::new());
+            } else {
+                return Ok(vec![AsmLine {
+                    line_number: self.line_number,
+                    contents: AsmLineContents::Empty,
+                    comment,
+                }]);
+            }
+        }
+
         let mnemonic = self.parse_mnemonic_or_label()?;
 
         if let Some(cond) = match_simple("BX", mnemonic) {

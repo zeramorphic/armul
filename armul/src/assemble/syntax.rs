@@ -11,6 +11,7 @@ pub struct AsmLine {
 
 #[derive(Debug)]
 pub enum AsmLineContents {
+    Empty,
     Label(String),
     Instr(Cond, AsmInstr),
 }

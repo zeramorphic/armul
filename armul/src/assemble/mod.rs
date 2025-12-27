@@ -1,17 +1,15 @@
 use std::collections::BTreeMap;
 
-use crate::instr::{Cond, Instr};
-
 mod assembler;
 mod parser;
 mod syntax;
 
 #[derive(Debug)]
 pub struct AssemblerOutput {
-    labels: BTreeMap<String, u32>,
-    instrs: Vec<(Cond, Instr)>,
-    warnings: Vec<AssemblerWarning>,
-    passes: usize,
+    pub labels: BTreeMap<String, u32>,
+    pub instrs: Vec<u32>,
+    pub warnings: Vec<AssemblerWarning>,
+    pub passes: usize,
 }
 
 #[derive(Debug)]
@@ -34,6 +32,8 @@ pub enum LineError {
     ShiftOutOfRange,
     MisalignedBranchOffset,
     OffsetOutOfRange,
+    ImmediateOutOfRange(u32),
+    InvalidShiftType,
 }
 
 #[derive(Debug)]
@@ -53,16 +53,20 @@ pub fn assemble(src: &str) -> Result<AssemblerOutput, AssemblerError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::assemble::{AssemblerError, assemble};
+    use crate::{
+        assemble::{AssemblerError, assemble},
+        instr::Instr,
+    };
 
     #[test]
     fn test_assemble() -> Result<(), AssemblerError> {
         let assembled = assemble(include_str!("../../test/divide.s"))?;
         println!("{assembled:#?}");
-        for (cond, instr) in assembled.instrs {
-            println!("{}", instr.display(cond));
+        for x in assembled.instrs {
+            let instr = Instr::decode(x).map(|(cond, instr)| instr.display(cond));
+            println!("{x:0>8X}: {}", instr.as_deref().unwrap_or("???"));
+            assert!(instr.is_some());
         }
-        panic!();
         Ok(())
     }
 }
