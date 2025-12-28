@@ -239,17 +239,9 @@ fn with_operand(
                 Shift {
                     shift_type: shift.shift_type,
                     shift_amount: match &shift.shift_amount {
-                        syntax::ShiftAmount::Constant(expression) => {
-                            let value = expression.evaluate(line_number, output)?;
-                            // This value had better be a 5-bit unsigned integer.
-                            if !(0..=0b11111).contains(&value) {
-                                return Err(AssemblerError {
-                                    line_number,
-                                    error: LineError::ShiftOutOfRange,
-                                });
-                            }
-                            instr::ShiftAmount::Constant(value as u8)
-                        }
+                        syntax::ShiftAmount::Constant(expression) => instr::ShiftAmount::Constant(
+                            expression.evaluate(line_number, output)? as u8,
+                        ),
                         syntax::ShiftAmount::Register(register) => {
                             instr::ShiftAmount::Register(*register)
                         }

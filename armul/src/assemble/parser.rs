@@ -85,7 +85,7 @@ impl<'a> Parser<'a> {
             match_mnemonic(&[("ADR", false), ("ADRL", true)], &[("", ())], mnemonic)
         {
             let dest = self.parse_register()?;
-            self.parse_comma();
+            self.parse_comma()?;
             let expr = self.parse_expression()?;
             let comment = self.parse_comment()?;
             Ok(vec![AsmLine {
@@ -119,6 +119,52 @@ impl<'a> Parser<'a> {
                         dest,
                         op1: Register::R0,
                         op2,
+                    },
+                ),
+                comment,
+            }])
+        } else if let Some((cond, shift_type, s)) = match_mnemonic(
+            &[
+                ("LSL", ShiftType::LogicalLeft),
+                ("LSR", ShiftType::LogicalRight),
+                ("ASL", ShiftType::LogicalLeft),
+                ("ASR", ShiftType::ArithmeticRight),
+                ("ROR", ShiftType::RotateRight),
+                ("RRX", ShiftType::RotateRightExtended),
+            ],
+            &[("", false), ("S", true)],
+            mnemonic,
+        ) {
+            let dest = self.parse_register()?;
+            self.parse_comma()?;
+            let op1 = self.parse_register()?;
+            let shift_amount = if *shift_type == ShiftType::RotateRightExtended {
+                ShiftAmount::Constant(Expression::Constant(1))
+            } else {
+                self.parse_comma()?;
+                if let Ok(register) = self.parse_register() {
+                    ShiftAmount::Register(register)
+                } else {
+                    ShiftAmount::Constant(self.parse_expression()?)
+                }
+            };
+            let comment = self.parse_comment()?;
+            Ok(vec![AsmLine {
+                line_number: self.line_number,
+                contents: AsmLineContents::Instr(
+                    cond,
+                    AsmInstr::Data {
+                        set_condition_codes: *s,
+                        op: DataOp::Mov,
+                        dest,
+                        op1: Register::R0,
+                        op2: DataOperand::Register(
+                            op1,
+                            Shift {
+                                shift_type: *shift_type,
+                                shift_amount,
+                            },
+                        ),
                     },
                 ),
                 comment,

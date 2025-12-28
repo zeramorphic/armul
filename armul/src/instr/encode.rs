@@ -223,7 +223,6 @@ impl Instr {
     /// Return instructions that fill the given register with the prescribed value,
     /// using all healing strategies.
     pub fn fill_register(value: u32, register: Register) -> Vec<u32> {
-        println!("value = {value} = {value:X}");
         // Try a direct move strategy first as in encode_constant.
         for shift in (0..16).map(|x| x * 2) {
             let immediate = value.rotate_left(shift);

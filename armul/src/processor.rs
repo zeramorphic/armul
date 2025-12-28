@@ -419,6 +419,10 @@ impl Processor {
             }
         };
         match (shift.shift_type, shift_amount) {
+            (ShiftType::RotateRightExtended, _) => Ok((
+                (value >> 1) + if self.registers.carry() { 1 << 31 } else { 0 },
+                value & 0b1 != 0,
+            )),
             (_, 0) => {
                 // Note that special encodings such as LSR #0 have already been
                 // decoded into their expanded forms.
@@ -451,15 +455,11 @@ impl Processor {
                 let n = (n - 1) % 32 + 1;
                 // n is now in the range 1..=32.
                 if n == 32 {
-                    Ok((value.rotate_right(n as u32), value & (1 << (n - 1)) != 0))
-                } else {
                     Ok((value, value & (1 << 31) != 0))
+                } else {
+                    Ok((value.rotate_right(n as u32), value & (1 << (n - 1)) != 0))
                 }
             }
-            (ShiftType::RotateRightExtended, _) => Ok((
-                (value >> 1) + if self.registers.carry() { 1 << 31 } else { 0 },
-                value & 0b1 != 0,
-            )),
         }
     }
 }
