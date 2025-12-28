@@ -63,7 +63,7 @@ impl Instr {
                 dest,
                 op1: _,
                 op2: DataOperand::Constant(c),
-            } => Ok(Instr::fill_register(c, dest)),
+            } if heal != HealStrategy::NoHealing => Ok(Instr::fill_register(c, dest)),
             Instr::Data {
                 set_condition_codes,
                 op,
@@ -72,8 +72,7 @@ impl Instr {
                 op2,
             } => {
                 let mut operand = Instr::encode_data_operand(op2, heal)?;
-                operand.instrs.insert(
-                    0,
+                operand.instrs.push(
                     (op as u32) << 21
                         | (if set_condition_codes { 1 << 20 } else { 0 })
                         | (op1 as u32) << 16
