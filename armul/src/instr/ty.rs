@@ -336,7 +336,7 @@ impl Display for DataOp {
 pub enum DataOperand {
     /// The second operand is a constant value.
     /// Not all 32-bit constants can be represented in this way.
-    Constant(u32),
+    Constant(RotatedConstant),
     /// The second operand is contained in a register,
     /// possibly shifted in some way.
     Register(Register, Shift),
@@ -357,6 +357,51 @@ impl DataOperand {
             DataOperand::Constant(_) => false,
             DataOperand::Register(_, _) => true,
         }
+    }
+}
+
+/// A 32-bit value encoded as a bit-rotated 8-bit value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RotatedConstant {
+    pub immediate: u8,
+    /// `immediate` is rotated right by twice this value.
+    pub half_rotate: u8,
+}
+
+impl Display for RotatedConstant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.half_rotate == 0 {
+            write!(f, "{}", self.immediate)
+        } else {
+            write!(f, "{},ROR {}", self.immediate, self.half_rotate * 2)
+        }
+    }
+}
+
+impl RotatedConstant {
+    /// Attempt to encode this 32-bit value in only 12 bits.
+    pub fn encode(value: u32) -> Option<Self> {
+        // The algorithm is very simple: attempt to rotate left by
+        // all possible values (0, 2, ..., 30), and see if any of the
+        // results fit into 8 bits.
+        for half_rotate in 0..16 {
+            let immediate = value.rotate_left(half_rotate * 2);
+            if immediate <= 0xFF {
+                return Some(Self {
+                    immediate: immediate as u8,
+                    half_rotate: half_rotate as u8,
+                });
+            }
+        }
+        None
+    }
+
+    /// Returns the result of evaluating this constant,
+    /// as well as the barrel shifter's carry out.
+    pub fn value(self) -> (u32, bool) {
+        let result = (self.immediate as u32).rotate_right(self.half_rotate as u32 * 2);
+        println!("{self} -> {result}");
+        (result, result & (1 << 31) != 0)
     }
 }
 

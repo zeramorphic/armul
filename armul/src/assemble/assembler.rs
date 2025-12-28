@@ -7,8 +7,25 @@ use crate::{
         AssemblerError, AssemblerOutput, LineError,
         syntax::{self, AsmInstr, AsmLine, AsmLineContents, Expression},
     },
-    instr::{self, Cond, HealStrategy, Instr, Shift},
+    instr::{self, Cond, DataOp, Instr, Register, RotatedConstant, Shift},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HealStrategy {
+    NoHealing,
+    SimpleHealing,
+    /// An advanced healing strategy that lets us use a dummy register.
+    AdvancedHealing(Register),
+}
+
+/// This constant/shifted register can either be encoded as a 12-bit value or
+/// is put into the healing register using a given sequence of instructions.
+pub struct OperandEncoding {
+    /// The value of bits 25 and 11..0.
+    pub value: u32,
+    /// The instructions to prepend to make this operand have the right behaviour.
+    pub instrs: Vec<u32>,
+}
 
 pub fn assemble(
     lines: Vec<AsmLine>,
@@ -73,9 +90,8 @@ fn single_pass(
                 output.instrs.extend(
                     instrs
                         .into_iter()
-                        .map(|i| i.encode(*cond, heal))
-                        .collect::<Result<Vec<Vec<u32>>, LineError>>()
-                        .map(|xs| xs.into_iter().flatten())
+                        .map(|i| i.encode(*cond))
+                        .collect::<Result<Vec<u32>, LineError>>()
                         .map_err(|error| AssemblerError {
                             line_number: line.line_number,
                             error,
@@ -156,7 +172,7 @@ fn assemble_instr(
             } else {
                 8
             };
-            with_operand(line_number, output, op2, |op2| Instr::Data {
+            with_operand(line_number, output, heal, op2, |op2| Instr::Data {
                 set_condition_codes: *set_condition_codes,
                 op: *op,
                 dest: *dest,
@@ -227,15 +243,17 @@ fn assemble_instr(
 fn with_operand(
     line_number: usize,
     output: &AssemblerOutput,
+    heal: HealStrategy,
     op: &syntax::DataOperand,
     instr: impl FnOnce(instr::DataOperand) -> Instr,
 ) -> Result<Vec<Instr>, AssemblerError> {
     match op {
         syntax::DataOperand::Constant(expression) => {
-            let value = expression.evaluate(line_number, output)?;
-            // For now let's not do any checking to determine whether this value is
-            // even representable using the 8-bit + 4-bit-rotate system.
-            Ok(vec![instr(instr::DataOperand::Constant(value as u32))])
+            let value = expression.evaluate(line_number, output)? as u32;
+            // Attempt to encode this 32-bit value in just 12 bits.
+            let (mut instrs, operand) = encode_constant(line_number, heal, value)?;
+            instrs.push(instr(operand));
+            Ok(instrs)
         }
         syntax::DataOperand::Register(register, shift) => {
             Ok(vec![instr(instr::DataOperand::Register(
@@ -253,6 +271,76 @@ fn with_operand(
                 },
             ))])
         }
+    }
+}
+
+/// Return instructions that fill the given register with the prescribed value,
+/// using all healing strategies.
+pub fn fill_register(value: u32, register: Register) -> Vec<Instr> {
+    // Try a direct move strategy first as in encode_constant.
+    if let Some(constant) = RotatedConstant::encode(value) {
+        return vec![Instr::Data {
+            set_condition_codes: false,
+            op: DataOp::Mov,
+            dest: register,
+            op1: Register::R0,
+            op2: instr::DataOperand::Constant(constant),
+        }];
+    }
+
+    // Try a negated move next.
+    if let Some(constant) = RotatedConstant::encode(!value) {
+        return vec![Instr::Data {
+            set_condition_codes: false,
+            op: DataOp::Mvn,
+            dest: register,
+            op1: Register::R0,
+            op2: instr::DataOperand::Constant(constant),
+        }];
+    }
+
+    // Slice off the lowest significant byte (or 7 bits if misaligned) and try again.
+    let trailing_zeros = (value.trailing_zeros() / 2) * 2;
+    let shift = trailing_zeros + 8;
+    println!("value {value} = {value:X} trailing {trailing_zeros}, shift {shift}");
+    let mut instrs = fill_register(value >> shift << shift, register);
+    // Now do `orr Rd, Rd, (extra)` to fill the remaining bits.
+    instrs.push(Instr::Data {
+        set_condition_codes: false,
+        op: DataOp::Orr,
+        dest: register,
+        op1: register,
+        op2: instr::DataOperand::Constant(RotatedConstant {
+            immediate: ((value & (0xFF << trailing_zeros)) >> trailing_zeros) as u8,
+            half_rotate: ((16 - trailing_zeros / 2) & 0b1111) as u8,
+        }),
+    });
+    instrs
+}
+
+fn encode_constant(
+    line_number: usize,
+    heal: HealStrategy,
+    value: u32,
+) -> Result<(Vec<Instr>, instr::DataOperand), AssemblerError> {
+    if let Some(constant) = RotatedConstant::encode(value) {
+        Ok((Vec::new(), instr::DataOperand::Constant(constant)))
+    } else if let HealStrategy::AdvancedHealing(reg) = heal {
+        Ok((
+            fill_register(value, reg),
+            instr::DataOperand::Register(
+                reg,
+                Shift {
+                    shift_type: instr::ShiftType::LogicalLeft,
+                    shift_amount: instr::ShiftAmount::Constant(0),
+                },
+            ),
+        ))
+    } else {
+        Err(AssemblerError {
+            line_number,
+            error: LineError::ImmediateOutOfRange(value),
+        })
     }
 }
 

@@ -1,8 +1,8 @@
 use num_traits::FromPrimitive;
 
 use crate::instr::{
-    Cond, DataOp, DataOperand, Instr, MsrSource, Psr, Register, Shift, ShiftAmount, ShiftType,
-    TransferKind, TransferSize,
+    Cond, DataOp, DataOperand, Instr, MsrSource, Psr, Register, RotatedConstant, Shift,
+    ShiftAmount, ShiftType, TransferKind, TransferSize,
 };
 
 impl Instr {
@@ -163,9 +163,10 @@ impl Instr {
                             Instr::decode_shifted_register(instr)
                         } else {
                             // Immediate operand.
-                            let imm = instr & 0xFF;
-                            let rotate = (instr >> 8) & 0xF;
-                            DataOperand::Constant(imm.rotate_right(rotate * 2))
+                            DataOperand::Constant(RotatedConstant {
+                                immediate: instr as u8,
+                                half_rotate: ((instr >> 8) & 0xF) as u8,
+                            })
                         };
                         Some(Instr::Data {
                             set_condition_codes: instr & (1 << 20) != 0,
@@ -197,7 +198,10 @@ impl Instr {
                     base_register: Register::from_u4(instr, 16),
                     offset: if instr & (1 << 25) == 0 {
                         // The offset is an immediate value.
-                        DataOperand::Constant(instr & 0xFFF)
+                        DataOperand::Constant(RotatedConstant {
+                            immediate: instr as u8,
+                            half_rotate: ((instr >> 8) & 0xF) as u8,
+                        })
                     } else {
                         // The offset is a shifted register.
                         Instr::decode_shifted_register(instr)

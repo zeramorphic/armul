@@ -276,9 +276,9 @@ impl Processor {
             DataOp::Mvn => !val2,
         };
 
-        // println!(
-        //     "OPERATION: {op} {op1}={val1} {op2}={val2} {carry} {result} (flags = {set_condition_codes})"
-        // );
+        println!(
+            "OPERATION: {op} {op1}={val1} {op2}={val2} {carry} {result} (flags = {set_condition_codes})"
+        );
 
         if set_condition_codes {
             if dest == Register::R15 {
@@ -391,7 +391,7 @@ impl Processor {
         pc_offset: u32,
     ) -> Result<(u32, bool), ProcessorError> {
         match operand {
-            DataOperand::Constant(c) => Ok((c, self.registers.carry())),
+            DataOperand::Constant(c) => Ok(c.value()),
             DataOperand::Register(register, shift) => self.apply_shift(
                 self.registers.get_pc_offset(register, pc_offset),
                 shift,

@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use crate::instr::HealStrategy;
-
 mod assembler;
 mod parser;
 mod syntax;
+
+use assembler::HealStrategy;
 
 #[derive(Debug)]
 pub struct AssemblerOutput {

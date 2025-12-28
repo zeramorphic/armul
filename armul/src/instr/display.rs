@@ -138,7 +138,7 @@ impl Instr {
                     write!(f, "]")?;
                 }
                 match offset {
-                    DataOperand::Constant(0) => {}
+                    DataOperand::Constant(i) if i.value().0 == 0 => {}
                     DataOperand::Constant(i) => {
                         write!(f, ",#")?;
                         if !*offset_positive {
