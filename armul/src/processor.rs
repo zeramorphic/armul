@@ -82,7 +82,7 @@ impl Processor {
             } => {
                 self.execute_data_processing(pc, set_condition_codes, op, dest, op1, op2, listener)
             }
-            Instr::Mrs { .. } => todo!(),
+            Instr::Mrs { psr, target } => self.execute_mrs(pc, psr, target, listener),
             Instr::Msr { psr, source } => self.execute_msr(pc, psr, source, listener),
             Instr::Multiply { .. } => todo!(),
             Instr::MultiplyLong { .. } => todo!(),
@@ -300,6 +300,22 @@ impl Processor {
             }
         }
 
+        Ok(())
+    }
+
+    #[inline]
+    fn execute_mrs(
+        &mut self,
+        pc: u32,
+        psr: Psr,
+        target: Register,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        listener.cycle(Cycle::Seq, 1, pc);
+        let mode = self.registers.mode().unwrap_or(Mode::Usr);
+        *self.registers.get_mut(target) = self
+            .registers
+            .get_physical(psr.physical(mode).ok_or(ProcessorError::NoSpsr)?);
         Ok(())
     }
 

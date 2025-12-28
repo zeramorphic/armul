@@ -101,21 +101,6 @@ pub enum DataOperand {
     Register(Register, Shift),
 }
 
-impl DataOperand {
-    pub fn is_register_specified_shift(&self) -> bool {
-        matches!(
-            self,
-            DataOperand::Register(
-                _,
-                Shift {
-                    shift_type: _,
-                    shift_amount: ShiftAmount::Register(_),
-                },
-            )
-        )
-    }
-}
-
 #[derive(Debug)]
 pub struct Shift {
     pub shift_type: ShiftType,

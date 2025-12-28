@@ -44,12 +44,20 @@ pub fn assemble(
         warnings: Vec::new(),
         passes: 0,
     };
+    let mut i = 0;
     loop {
         output.instrs = Vec::new();
         output.warnings = Vec::new();
         output.passes += 1;
         if !single_pass(&lines, heal, &mut output)? {
             break;
+        }
+        i += 1;
+        if i > 10 {
+            return Err(AssemblerError {
+                line_number: 0,
+                error: LineError::TooManyPasses,
+            });
         }
     }
     Ok(output)
@@ -161,21 +169,17 @@ fn assemble_instr(
             dest,
             op1,
             op2,
-        } => {
-            let offset = if op2.is_register_specified_shift() {
-                12
-            } else {
-                8
-            };
-            with_operand(line_number, output, heal, op2, |op2| Instr::Data {
-                set_condition_codes: *set_condition_codes,
-                op: *op,
-                dest: *dest,
-                op1: *op1,
-                op2,
-            })
-        }
-        AsmInstr::Mrs { .. } => todo!(),
+        } => with_operand(line_number, output, heal, op2, |op2| Instr::Data {
+            set_condition_codes: *set_condition_codes,
+            op: *op,
+            dest: *dest,
+            op1: *op1,
+            op2,
+        }),
+        AsmInstr::Mrs { psr, target } => Ok(vec![Instr::Mrs {
+            psr: *psr,
+            target: *target,
+        }]),
         AsmInstr::Msr { psr, source } => Ok(vec![Instr::Msr {
             psr: *psr,
             source: match source {

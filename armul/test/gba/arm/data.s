@@ -314,16 +314,15 @@ f222
 
 t223
         ; ARM 3 PC as destination with S bit
-        ; This uses an instruction form
-        ; not allowed by the data sheet.
-
-        ; mov     r8, 32
-        ; msr     cpsr, MODE_FIQ
-        ; mov     r8, 64
-        ; msr     spsr, MODE_SYS
-        ; subs    pc, 4
-        ; cmp     r8, 32
-        ; bne     f223
+        mov     r8, 32
+        mov     r7, MODE_FIQ
+        msr     cpsr, r7
+        mov     r8, 64
+        mov     r7, MODE_SYS
+        msr     spsr, r7
+        subs    pc, pc, 4
+        cmp     r8, 32
+        bne     f223
 
         b       t224
 
@@ -492,18 +491,18 @@ f233
 
 t234
         ; ARM 3 Bad CMP / CMN / TST / TEQ change the mode
-        ; As above.
-
-        ; mov     r8, 32
-        ; msr     cpsr, MODE_FIQ
-        ; mov     r8, 64
-        ; msr     spsr, MODE_SYS
-        ; dw      0xE15FF000  ; cmp pc, pc, r0
-        ; nop
-        ; nop
-        ; beq     f234
-        ; cmp     r8, 32
-        ; bne     f234
+        mov     r8, 32
+        mov     r7, MODE_FIQ
+        msr     cpsr, r7
+        mov     r8, 64
+        mov     r7, MODE_SYS
+        msr     spsr, r7
+        dw      0xE15FF000  ; cmp pc, pc, r0
+        nop
+        nop
+        beq     f234
+        cmp     r8, 32
+        bne     f234
 
         b       t235
 
@@ -512,6 +511,10 @@ f234
 
 t235
         ; ARM 3 Bad CMP / CMN / TST / TEQ do not flush the pipeline
+        ; We can't run this test as written because our processor
+        ; exits when this instruction is run in user/system mode.
+        mov     r7, MODE_SVC
+        msr     cpsr, r7
         mov     r8, 0
         dw      0xE15FF000  ; cmp pc, pc, r0
         mov     r8, 1

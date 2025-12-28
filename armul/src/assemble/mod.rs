@@ -37,6 +37,7 @@ pub enum LineError {
     ImmediateOutOfRange(u32),
     InvalidShiftType,
     InvalidPsr,
+    TooManyPasses,
 }
 
 #[derive(Debug)]

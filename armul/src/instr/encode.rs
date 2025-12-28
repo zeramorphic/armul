@@ -41,7 +41,12 @@ impl Instr {
                 | (op1 as u32) << 16
                 | (dest as u32) << 12
                 | Instr::encode_data_operand(op2)?),
-            Instr::Mrs { .. } => todo!(),
+            Instr::Mrs { psr, target } => Ok(0b100001111 << 16
+                | match psr {
+                    Psr::Cpsr => 0,
+                    Psr::Spsr => 1 << 22,
+                }
+                | (target as u32) << 12),
             Instr::Msr { psr, source } => {
                 let signature = 0b1_0010_1000_1111 << 12;
                 let dest = match psr {

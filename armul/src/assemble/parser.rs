@@ -57,7 +57,29 @@ impl<'a> Parser<'a> {
 
         let mnemonic = self.parse_mnemonic_or_label()?;
 
-        if let Some(cond) = match_simple("BX", mnemonic) {
+        if let Some(cond) = match_simple("NOP", mnemonic) {
+            let comment = self.parse_comment()?;
+            Ok(vec![AsmLine {
+                line_number: self.line_number,
+                contents: AsmLineContents::Instr(
+                    cond,
+                    AsmInstr::Data {
+                        set_condition_codes: false,
+                        op: DataOp::Mov,
+                        dest: Register::R8,
+                        op1: Register::R0,
+                        op2: DataOperand::Register(
+                            Register::R8,
+                            Shift {
+                                shift_type: ShiftType::LogicalLeft,
+                                shift_amount: ShiftAmount::Constant(Expression::Constant(0)),
+                            },
+                        ),
+                    },
+                ),
+                comment,
+            }])
+        } else if let Some(cond) = match_simple("BX", mnemonic) {
             let operand = self.parse_register()?;
             let comment = self.parse_comment()?;
             Ok(vec![AsmLine {
