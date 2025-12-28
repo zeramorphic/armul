@@ -288,14 +288,16 @@ impl Processor {
 
         match op {
             DataOp::Tst | DataOp::Teq | DataOp::Cmp | DataOp::Cmn => {}
-            _ => *self.registers_mut().get_mut(dest) = result,
-        }
-
-        if dest == Register::R15 {
-            // We need to decrement the PC by 4 bytes to
-            // take the auto-increment into account.
-            *self.registers_mut().get_mut(dest) = result.wrapping_sub(4);
-            listener.pipeline_flush(pc);
+            _ => {
+                *self.registers_mut().get_mut(dest) = if dest == Register::R15 {
+                    // We need to decrement the PC by 4 bytes to
+                    // take the auto-increment into account.
+                    listener.pipeline_flush(pc);
+                    result.wrapping_sub(4)
+                } else {
+                    result
+                };
+            }
         }
 
         Ok(())
