@@ -7,10 +7,13 @@ use crate::{
         AssemblerError, AssemblerOutput, LineError,
         syntax::{self, AsmInstr, AsmLine, AsmLineContents, Expression},
     },
-    instr::{self, Cond, Instr, Shift},
+    instr::{self, Cond, HealStrategy, Instr, Shift},
 };
 
-pub fn assemble(lines: Vec<AsmLine>) -> Result<AssemblerOutput, AssemblerError> {
+pub fn assemble(
+    lines: Vec<AsmLine>,
+    heal: HealStrategy,
+) -> Result<AssemblerOutput, AssemblerError> {
     // Create a mapping of labels to their absolute addresses.
     // For the moment let's just say that every label is mapped to 0.
     let labels = lines
@@ -37,7 +40,7 @@ pub fn assemble(lines: Vec<AsmLine>) -> Result<AssemblerOutput, AssemblerError> 
         output.instrs = Vec::new();
         output.warnings = Vec::new();
         output.passes += 1;
-        if !single_pass(&lines, &mut output)? {
+        if !single_pass(&lines, heal, &mut output)? {
             break;
         }
     }
@@ -46,7 +49,11 @@ pub fn assemble(lines: Vec<AsmLine>) -> Result<AssemblerOutput, AssemblerError> 
 
 /// Returns true if anything in the assembler's output changed
 /// since last pass.
-fn single_pass(lines: &[AsmLine], output: &mut AssemblerOutput) -> Result<bool, AssemblerError> {
+fn single_pass(
+    lines: &[AsmLine],
+    heal: HealStrategy,
+    output: &mut AssemblerOutput,
+) -> Result<bool, AssemblerError> {
     let mut program_counter = 0u32;
     let mut anything_changed = false;
     for line in lines {
@@ -60,13 +67,15 @@ fn single_pass(lines: &[AsmLine], output: &mut AssemblerOutput) -> Result<bool, 
                 }
             }
             AsmLineContents::Instr(cond, asm_instr) => {
-                let instrs = assemble_instr(line.line_number, program_counter, asm_instr, output)?;
+                let instrs =
+                    assemble_instr(line.line_number, heal, program_counter, asm_instr, output)?;
                 program_counter += 4 * instrs.len() as u32;
                 output.instrs.extend(
                     instrs
                         .into_iter()
-                        .map(|i| i.encode(*cond))
-                        .collect::<Result<Vec<u32>, LineError>>()
+                        .map(|i| i.encode(*cond, heal))
+                        .collect::<Result<Vec<Vec<u32>>, LineError>>()
+                        .map(|xs| xs.into_iter().flatten())
                         .map_err(|error| AssemblerError {
                             line_number: line.line_number,
                             error,
@@ -88,6 +97,7 @@ fn single_pass(lines: &[AsmLine], output: &mut AssemblerOutput) -> Result<bool, 
 
 fn assemble_instr(
     line_number: usize,
+    heal: HealStrategy,
     program_counter: u32,
     asm_instr: &AsmInstr,
     output: &mut AssemblerOutput,
@@ -117,19 +127,19 @@ fn assemble_instr(
                 offset: offset as i32,
             }])
         }
-        AsmInstr::Adr { long, dest, expr } => {
-            let value = expr.evaluate(line_number, output)?;
-            Ok(vec![Instr::Data {
+        AsmInstr::Adr { long, dest, expr } => assemble_instr(
+            line_number,
+            heal,
+            program_counter,
+            &AsmInstr::Data {
                 set_condition_codes: false,
                 op: instr::DataOp::Mov,
                 dest: *dest,
                 op1: instr::Register::R0,
-                op2: instr::DataOperand::Constant(
-                    Instr::encode_constant(value as u32)
-                        .map_err(|error| AssemblerError { line_number, error })?,
-                ),
-            }])
-        }
+                op2: syntax::DataOperand::Constant(expr.clone()),
+            },
+            output,
+        ),
         AsmInstr::Data {
             set_condition_codes,
             op,

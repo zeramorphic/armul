@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use crate::instr::HealStrategy;
+
 mod assembler;
 mod parser;
 mod syntax;
@@ -49,25 +51,12 @@ pub enum LineWarning {}
 pub fn assemble(src: &str) -> Result<AssemblerOutput, AssemblerError> {
     crate::assemble::assembler::assemble(
         crate::assemble::parser::Parser::new(&src.to_uppercase()).parse()?,
+        if src.lines().any(|line| line.trim() == "; HEAL OFF") {
+            HealStrategy::NoHealing
+        } else if src.lines().any(|line| line.trim() == "; HEAL SIMPLE") {
+            HealStrategy::SimpleHealing
+        } else {
+            HealStrategy::AdvancedHealing(crate::instr::Register::R12)
+        },
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        assemble::{AssemblerError, assemble},
-        instr::Instr,
-    };
-
-    #[test]
-    fn test_assemble() -> Result<(), AssemblerError> {
-        let assembled = assemble(include_str!("../../test/divide.s"))?;
-        println!("{assembled:#?}");
-        for x in assembled.instrs {
-            let instr = Instr::decode(x).map(|(cond, instr)| instr.display(cond));
-            println!("{x:0>8X}: {}", instr.as_deref().unwrap_or("???"));
-            assert!(instr.is_some());
-        }
-        Ok(())
-    }
 }

@@ -160,8 +160,8 @@ pub fn test(src: &str) -> Result<(), TestError> {
 }
 
 fn parse_param(assembled: &AssemblerOutput, params: &str) -> Result<u32, TestError> {
-    match params.parse::<u32>() {
-        Ok(x) => Ok(x),
+    match params.parse::<i64>() {
+        Ok(x) => Ok(x as u32),
         Err(_) => {
             // Try to parse it as a label instead.
             match assembled.labels.get(&params.to_uppercase()) {

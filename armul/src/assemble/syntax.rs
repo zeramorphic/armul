@@ -131,7 +131,7 @@ pub enum MsrSource {
     Flags(Expression),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Constant(i64),
     Label(String),

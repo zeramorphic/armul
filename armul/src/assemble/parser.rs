@@ -477,6 +477,8 @@ impl<'a> Parser<'a> {
             } else {
                 self.parse_radix(8)
             }
+        } else if self.parse_exact("-") {
+            self.parse_radix(10).map(|x| -x)
         } else {
             self.parse_radix(10)
         }
@@ -489,9 +491,9 @@ impl<'a> Parser<'a> {
             let digit = if c.is_ascii_digit() {
                 c as i64 - '0' as i64
             } else if ('A'..='F').contains(&c) {
-                c as i64 - 'A' as i64
+                c as i64 - 'A' as i64 + 10
             } else if ('a'..='f').contains(&c) {
-                c as i64 - 'a' as i64
+                c as i64 - 'a' as i64 + 10
             } else {
                 break;
             };
