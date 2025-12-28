@@ -1,7 +1,4 @@
-; Conditions test suite adapted from <https://github.com/jsmolka/gba-tests>,
-; licensed under the MIT License.
-
-;! halts 500
+;! halts 50
 
 FLAG_N equ 1 lsl 31
 FLAG_Z equ 1 lsl 30

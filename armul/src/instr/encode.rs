@@ -15,7 +15,9 @@ impl Instr {
     /// Encode an instruction into the bottom 28 bits of a 32-bit integer.
     fn encode_no_cond(self) -> Result<u32, LineError> {
         match self {
-            Instr::BranchExchange { operand } => todo!(),
+            Instr::BranchExchange { operand } => {
+                Ok(0b1_0010_1111_1111_1111_0001_0000 | operand as u32)
+            }
             Instr::Branch { link, offset } => {
                 // Check that the offset is in bounds.
                 if offset % 4 != 0 {

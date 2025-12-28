@@ -81,6 +81,25 @@ impl<'a> Parser<'a> {
                 ),
                 comment,
             }])
+        } else if let Some((cond, long, ())) =
+            match_mnemonic(&[("ADR", false), ("ADRL", true)], &[("", ())], mnemonic)
+        {
+            let dest = self.parse_register()?;
+            self.parse_comma();
+            let expr = self.parse_expression()?;
+            let comment = self.parse_comment()?;
+            Ok(vec![AsmLine {
+                line_number: self.line_number,
+                contents: AsmLineContents::Instr(
+                    cond,
+                    AsmInstr::Adr {
+                        long: *long,
+                        dest,
+                        expr,
+                    },
+                ),
+                comment,
+            }])
         } else if let Some((cond, op, s)) = match_mnemonic(
             &[("MOV", DataOp::Mov), ("MVN", DataOp::Mvn)],
             &[("", false), ("S", true)],
@@ -410,6 +429,13 @@ impl<'a> Parser<'a> {
     fn parse_expression_shift(&mut self) -> ParseResult<Expression> {
         self.parse_binary(
             &[("LSL", Expression::Lsl), ("LSR", Expression::Lsr)],
+            Self::parse_expression_add,
+        )
+    }
+
+    fn parse_expression_add(&mut self) -> ParseResult<Expression> {
+        self.parse_binary(
+            &[("+", Expression::Add), ("-", Expression::Sub)],
             Self::parse_expression_atom,
         )
     }
@@ -430,7 +456,7 @@ impl<'a> Parser<'a> {
         if self.parse_exact(",") {
             Ok(())
         } else {
-            Err(LineError::ExpectedComma)
+            Err(LineError::ExpectedComma(self.until_eol()))
         }
     }
 
@@ -487,6 +513,7 @@ impl<'a> Parser<'a> {
 
     fn parse_register(&mut self) -> ParseResult<Register> {
         self.parse_whitespace();
+        // Iterate reversed so that e.g. R15 matches before R1.
         for (s, reg) in [
             ("R0", Register::R0),
             ("R1", Register::R1),
@@ -507,7 +534,10 @@ impl<'a> Parser<'a> {
             ("LR", Register::R14),
             ("R15", Register::R15),
             ("PC", Register::R15),
-        ] {
+        ]
+        .into_iter()
+        .rev()
+        {
             if self.parse_exact(s) {
                 return Ok(reg);
             }

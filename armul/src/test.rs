@@ -36,6 +36,7 @@ pub fn test(src: &str) -> Result<(), TestError> {
             };
             let kwd = kwd.to_uppercase();
             let mut kwd_found = false;
+            // Iterate reversed so that longer strings are matched first.
             for (pattern, reg) in [
                 ("R0", PhysicalRegister::R0),
                 ("R1", PhysicalRegister::R1),
@@ -77,7 +78,10 @@ pub fn test(src: &str) -> Result<(), TestError> {
                 ("SPSRABT", PhysicalRegister::SpsrAbt),
                 ("SPSRIRQ", PhysicalRegister::SpsrIrq),
                 ("SPSRUND", PhysicalRegister::SpsrUnd),
-            ] {
+            ]
+            .into_iter()
+            .rev()
+            {
                 if kwd == pattern {
                     output.insert(reg, parse_param(&assembled, params)?);
                     kwd_found = true;

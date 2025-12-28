@@ -69,7 +69,9 @@ impl Processor {
         }
 
         match instr {
-            Instr::BranchExchange { operand } => todo!(),
+            Instr::BranchExchange { operand } => {
+                self.execute_branch_exchange(pc, operand, listener)
+            }
             Instr::Branch { link, offset } => self.execute_branch(pc, link, offset, listener),
             Instr::Data {
                 set_condition_codes,
@@ -135,6 +137,24 @@ impl Processor {
     }
 
     #[inline]
+    fn execute_branch_exchange(
+        &mut self,
+        pc: u32,
+        operand: Register,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        listener.cycle(Cycle::Seq, 1, pc);
+        let new_pc = self.registers.get(operand);
+        if new_pc & 0b11 != 0 {
+            // We don't emulate THUMB instructions.
+            return Err(ProcessorError::UnalignedPc);
+        }
+        *self.registers.get_mut(Register::R15) = new_pc;
+        listener.pipeline_flush(pc);
+        Ok(())
+    }
+
+    #[inline]
     fn execute_branch(
         &mut self,
         pc: u32,
@@ -153,7 +173,7 @@ impl Processor {
         // because we're about to auto-increment the PC anyway at the
         // end of this execution step.
         *pc_reg = pc_reg.wrapping_add(4).wrapping_add_signed(offset);
-        listener.stall(pc);
+        listener.pipeline_flush(pc);
         Ok(())
     }
 
@@ -311,7 +331,7 @@ impl Processor {
             // We need to decrement the PC by 4 bytes to
             // take the auto-increment into account.
             *self.registers_mut().get_mut(dest) = result.wrapping_sub(4);
-            listener.stall(pc);
+            listener.pipeline_flush(pc);
         }
 
         Ok(())
@@ -450,9 +470,9 @@ pub trait ProcessorListener {
     /// For instrumentation purposes, we track the program counter
     /// at which the cycle took place.
     fn cycle(&mut self, cycle: Cycle, count: usize, pc: u32);
-    /// Simulate a pipeline stall.
+    /// Simulate a pipeline flush.
     /// This takes 1S + 1N cycles to recover.
-    fn stall(&mut self, pc: u32);
+    fn pipeline_flush(&mut self, pc: u32);
 }
 
 /// One of the four cycle types in the CPU.
@@ -514,7 +534,7 @@ pub mod test {
             }
         }
 
-        fn stall(&mut self, _pc: u32) {
+        fn pipeline_flush(&mut self, _pc: u32) {
             self.n_cycles += 1;
             self.s_cycles += 1;
         }

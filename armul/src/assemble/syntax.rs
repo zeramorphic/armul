@@ -28,6 +28,11 @@ pub enum AsmInstr {
         link: bool,
         target: Expression,
     },
+    Adr {
+        long: bool,
+        dest: Register,
+        expr: Expression,
+    },
     Data {
         set_condition_codes: bool,
         op: DataOp,
@@ -130,6 +135,8 @@ pub enum MsrSource {
 pub enum Expression {
     Constant(i64),
     Label(String),
+    Add(Box<Expression>, Box<Expression>),
+    Sub(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
     Lsl(Box<Expression>, Box<Expression>),
     Lsr(Box<Expression>, Box<Expression>),

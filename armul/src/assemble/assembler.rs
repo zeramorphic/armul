@@ -93,7 +93,9 @@ fn assemble_instr(
     output: &mut AssemblerOutput,
 ) -> Result<Vec<Instr>, AssemblerError> {
     match asm_instr {
-        AsmInstr::BranchExchange { operand } => todo!(),
+        AsmInstr::BranchExchange { operand } => {
+            Ok(vec![Instr::BranchExchange { operand: *operand }])
+        }
         AsmInstr::Branch { link, target } => {
             let address = target.evaluate(line_number, output)?;
             let offset = address - (program_counter as i64 + 8);
@@ -113,6 +115,19 @@ fn assemble_instr(
             Ok(vec![Instr::Branch {
                 link: *link,
                 offset: offset as i32,
+            }])
+        }
+        AsmInstr::Adr { long, dest, expr } => {
+            let value = expr.evaluate(line_number, output)?;
+            Ok(vec![Instr::Data {
+                set_condition_codes: false,
+                op: instr::DataOp::Mov,
+                dest: *dest,
+                op1: instr::Register::R0,
+                op2: instr::DataOperand::Constant(
+                    Instr::encode_constant(value as u32)
+                        .map_err(|error| AssemblerError { line_number, error })?,
+                ),
             }])
         }
         AsmInstr::Data {
@@ -250,6 +265,12 @@ impl Expression {
                     error: LineError::LabelNotFound(label.to_owned()),
                 }),
             },
+            Expression::Add(lhs, rhs) => {
+                Ok(lhs.evaluate(line_number, output)? + rhs.evaluate(line_number, output)?)
+            }
+            Expression::Sub(lhs, rhs) => {
+                Ok(lhs.evaluate(line_number, output)? - rhs.evaluate(line_number, output)?)
+            }
             Expression::Or(lhs, rhs) => {
                 Ok(lhs.evaluate(line_number, output)? | rhs.evaluate(line_number, output)?)
             }
