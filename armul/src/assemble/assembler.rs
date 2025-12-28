@@ -90,6 +90,10 @@ fn single_pass(
                     *entry = value;
                 }
             }
+            AsmLineContents::DefWord(expression) => {
+                let value = expression.evaluate(line.line_number, output)? as u32;
+                output.instrs.push(value);
+            }
         }
     }
     Ok(anything_changed)

@@ -315,6 +315,22 @@ impl<'a> Parser<'a> {
                 ),
                 comment,
             }])
+        } else if ["DW", "DEFW"].contains(&mnemonic) {
+            self.parse_whitespace();
+            let mut exprs = vec![self.parse_expression()?];
+            self.parse_whitespace();
+            while self.parse_exact(",") {
+                exprs.push(self.parse_expression()?);
+            }
+            let mut comment = self.parse_comment()?;
+            Ok(exprs
+                .into_iter()
+                .map(|expr| AsmLine {
+                    line_number: self.line_number,
+                    contents: AsmLineContents::DefWord(expr),
+                    comment: std::mem::take(&mut comment),
+                })
+                .collect())
         } else if allow_labels {
             self.parse_whitespace();
             if self.parse_exact("EQU") {
@@ -590,7 +606,7 @@ impl<'a> Parser<'a> {
                 return Ok(reg);
             }
         }
-        Err(LineError::ExpectedRegister)
+        Err(LineError::ExpectedRegister(self.until_eol()))
     }
 
     fn parse_exact(&mut self, pattern: &str) -> bool {

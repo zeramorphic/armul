@@ -23,7 +23,7 @@ pub struct AssemblerError {
 #[derive(Debug)]
 pub enum LineError {
     ExpectedComma(String),
-    ExpectedRegister,
+    ExpectedRegister(String),
     UnrecognisedOpcode(String),
     ExpectedMnemonic(String),
     UnrecognisedAtEnd(String),

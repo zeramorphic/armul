@@ -15,6 +15,7 @@ pub enum AsmLineContents {
     Label(String),
     Instr(Cond, AsmInstr),
     Equ(String, Expression),
+    DefWord(Expression),
 }
 
 /// An instruction that might contain expressions or labels.
