@@ -52,11 +52,11 @@ pub fn assemble(src: &str) -> Result<AssemblerOutput, AssemblerError> {
     crate::assemble::assembler::assemble(
         crate::assemble::parser::Parser::new(&src.to_uppercase()).parse()?,
         if src.lines().any(|line| line.trim() == "; HEAL OFF") {
-            HealStrategy::NoHealing
+            HealStrategy::Off
         } else if src.lines().any(|line| line.trim() == "; HEAL SIMPLE") {
-            HealStrategy::SimpleHealing
+            HealStrategy::Simple
         } else {
-            HealStrategy::AdvancedHealing(crate::instr::Register::R12)
+            HealStrategy::Advanced(crate::instr::Register::R12)
         },
     )
 }

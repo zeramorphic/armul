@@ -1,9 +1,6 @@
 use crate::{
     assemble::LineError,
-    instr::{
-        Cond, DataOp, DataOperand, Instr, MsrSource, Psr, Register, RotatedConstant, Shift,
-        ShiftType,
-    },
+    instr::{Cond, DataOperand, Instr, MsrSource, Psr, RotatedConstant, Shift, ShiftType},
 };
 
 use super::ShiftAmount;
@@ -44,7 +41,7 @@ impl Instr {
                 | (op1 as u32) << 16
                 | (dest as u32) << 12
                 | Instr::encode_data_operand(op2)?),
-            Instr::Mrs { psr, target } => todo!(),
+            Instr::Mrs { .. } => todo!(),
             Instr::Msr { psr, source } => {
                 let signature = 0b1_0010_1000_1111 << 12;
                 let dest = match psr {
@@ -61,47 +58,11 @@ impl Instr {
                 };
                 Ok(signature | dest | source)
             }
-            Instr::Multiply {
-                set_condition_codes,
-                dest,
-                op1,
-                op2,
-                addend,
-            } => todo!(),
-            Instr::MultiplyLong {
-                set_condition_codes,
-                signed,
-                accumulate,
-                dest_hi,
-                dest_lo,
-                op1,
-                op2,
-            } => todo!(),
-            Instr::SingleTransfer {
-                kind,
-                size,
-                write_back,
-                offset_positive,
-                pre_index,
-                data_register,
-                base_register,
-                offset,
-            } => todo!(),
-            Instr::BlockTransfer {
-                kind,
-                write_back,
-                offset_positive,
-                pre_index,
-                psr,
-                base_register,
-                registers,
-            } => todo!(),
-            Instr::Swap {
-                byte,
-                dest,
-                source,
-                base,
-            } => todo!(),
+            Instr::Multiply { .. } => todo!(),
+            Instr::MultiplyLong { .. } => todo!(),
+            Instr::SingleTransfer { .. } => todo!(),
+            Instr::BlockTransfer { .. } => todo!(),
+            Instr::Swap { .. } => todo!(),
             Instr::SoftwareInterrupt { comment } => Ok(0b1111 << 24 | comment & 0x00FFFFFF),
         }
     }

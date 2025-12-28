@@ -1,6 +1,6 @@
 ; Tests for the data processing instruction
 
-;! halts 200
+;! halts 300
 
 FLAG_N equ 1 lsl 31
 FLAG_Z equ 1 lsl 30

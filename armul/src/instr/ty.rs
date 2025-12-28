@@ -353,10 +353,16 @@ impl Display for DataOperand {
 
 impl DataOperand {
     pub fn is_register_specified_shift(self) -> bool {
-        match self {
-            DataOperand::Constant(_) => false,
-            DataOperand::Register(_, _) => true,
-        }
+        matches!(
+            self,
+            DataOperand::Register(
+                _,
+                Shift {
+                    shift_type: _,
+                    shift_amount: ShiftAmount::Register(_),
+                },
+            )
+        )
     }
 }
 
@@ -400,7 +406,6 @@ impl RotatedConstant {
     /// as well as the barrel shifter's carry out.
     pub fn value(self) -> (u32, bool) {
         let result = (self.immediate as u32).rotate_right(self.half_rotate as u32 * 2);
-        println!("{self} -> {result}");
         (result, result & (1 << 31) != 0)
     }
 }

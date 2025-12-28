@@ -1,30 +1,21 @@
 //! Assembles parsed assembly into real 32-bit instructions.
 
-use std::{any, collections::BTreeMap};
+use std::collections::BTreeMap;
 
 use crate::{
     assemble::{
         AssemblerError, AssemblerOutput, LineError,
         syntax::{self, AsmInstr, AsmLine, AsmLineContents, Expression},
     },
-    instr::{self, Cond, DataOp, Instr, Register, RotatedConstant, Shift},
+    instr::{self, DataOp, Instr, Register, RotatedConstant, Shift},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HealStrategy {
-    NoHealing,
-    SimpleHealing,
+    Off,
+    Simple,
     /// An advanced healing strategy that lets us use a dummy register.
-    AdvancedHealing(Register),
-}
-
-/// This constant/shifted register can either be encoded as a 12-bit value or
-/// is put into the healing register using a given sequence of instructions.
-pub struct OperandEncoding {
-    /// The value of bits 25 and 11..0.
-    pub value: u32,
-    /// The instructions to prepend to make this operand have the right behaviour.
-    pub instrs: Vec<u32>,
+    Advanced(Register),
 }
 
 pub fn assemble(
@@ -147,7 +138,11 @@ fn assemble_instr(
                 offset: offset as i32,
             }])
         }
-        AsmInstr::Adr { long, dest, expr } => assemble_instr(
+        AsmInstr::Adr {
+            long: _,
+            dest,
+            expr,
+        } => assemble_instr(
             line_number,
             heal,
             program_counter,
@@ -180,7 +175,7 @@ fn assemble_instr(
                 op2,
             })
         }
-        AsmInstr::Mrs { psr, target } => todo!(),
+        AsmInstr::Mrs { .. } => todo!(),
         AsmInstr::Msr { psr, source } => Ok(vec![Instr::Msr {
             psr: *psr,
             source: match source {
@@ -193,47 +188,11 @@ fn assemble_instr(
                 }
             },
         }]),
-        AsmInstr::Multiply {
-            set_condition_codes,
-            dest,
-            op1,
-            op2,
-            addend,
-        } => todo!(),
-        AsmInstr::MultiplyLong {
-            set_condition_codes,
-            signed,
-            accumulate,
-            dest_hi,
-            dest_lo,
-            op1,
-            op2,
-        } => todo!(),
-        AsmInstr::SingleTransfer {
-            kind,
-            size,
-            write_back,
-            offset_positive,
-            pre_index,
-            data_register,
-            base_register,
-            offset,
-        } => todo!(),
-        AsmInstr::BlockTransfer {
-            kind,
-            write_back,
-            offset_positive,
-            pre_index,
-            psr,
-            base_register,
-            registers,
-        } => todo!(),
-        AsmInstr::Swap {
-            byte,
-            dest,
-            source,
-            base,
-        } => todo!(),
+        AsmInstr::Multiply { .. } => todo!(),
+        AsmInstr::MultiplyLong { .. } => todo!(),
+        AsmInstr::SingleTransfer { .. } => todo!(),
+        AsmInstr::BlockTransfer { .. } => todo!(),
+        AsmInstr::Swap { .. } => todo!(),
         AsmInstr::SoftwareInterrupt { comment } => {
             Ok(vec![Instr::SoftwareInterrupt { comment: *comment }])
         }
@@ -325,7 +284,7 @@ fn encode_constant(
 ) -> Result<(Vec<Instr>, instr::DataOperand), AssemblerError> {
     if let Some(constant) = RotatedConstant::encode(value) {
         Ok((Vec::new(), instr::DataOperand::Constant(constant)))
-    } else if let HealStrategy::AdvancedHealing(reg) = heal {
+    } else if let HealStrategy::Advanced(reg) = heal {
         Ok((
             fill_register(value, reg),
             instr::DataOperand::Register(

@@ -82,49 +82,13 @@ impl Processor {
             } => {
                 self.execute_data_processing(pc, set_condition_codes, op, dest, op1, op2, listener)
             }
-            Instr::Mrs { psr, target } => todo!(),
+            Instr::Mrs { .. } => todo!(),
             Instr::Msr { psr, source } => self.execute_msr(pc, psr, source, listener),
-            Instr::Multiply {
-                set_condition_codes,
-                dest,
-                op1,
-                op2,
-                addend,
-            } => todo!(),
-            Instr::MultiplyLong {
-                set_condition_codes,
-                signed,
-                accumulate,
-                dest_hi,
-                dest_lo,
-                op1,
-                op2,
-            } => todo!(),
-            Instr::SingleTransfer {
-                kind,
-                size,
-                write_back,
-                offset_positive,
-                pre_index,
-                data_register,
-                base_register,
-                offset,
-            } => todo!(),
-            Instr::BlockTransfer {
-                kind,
-                write_back,
-                offset_positive,
-                pre_index,
-                psr,
-                base_register,
-                registers,
-            } => todo!(),
-            Instr::Swap {
-                byte,
-                dest,
-                source,
-                base,
-            } => todo!(),
+            Instr::Multiply { .. } => todo!(),
+            Instr::MultiplyLong { .. } => todo!(),
+            Instr::SingleTransfer { .. } => todo!(),
+            Instr::BlockTransfer { .. } => todo!(),
+            Instr::Swap { .. } => todo!(),
             Instr::SoftwareInterrupt { comment } => match comment {
                 2 => {
                     // Halt the processor.
@@ -277,7 +241,7 @@ impl Processor {
         };
 
         println!(
-            "OPERATION: {op} {op1}={val1} {op2}={val2} {carry} {result} (flags = {set_condition_codes})"
+            "Data operation: {op} {op1}={val1} {op2}={val2} {carry} {result} (flags = {set_condition_codes})"
         );
 
         if set_condition_codes {
