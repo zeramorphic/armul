@@ -3,9 +3,12 @@
 use crate::{
     assemble::{
         AssemblerError, LineError,
-        syntax::{AsmInstr, AsmLine, AsmLineContents, DataOperand, Expression, Shift, ShiftAmount},
+        syntax::{
+            AsmInstr, AsmLine, AsmLineContents, DataOperand, Expression, MsrSource, Shift,
+            ShiftAmount,
+        },
     },
-    instr::{Cond, DataOp, Register, ShiftType},
+    instr::{Cond, DataOp, Psr, Register, ShiftType},
 };
 
 pub struct Parser<'a> {
@@ -165,18 +168,113 @@ impl<'a> Parser<'a> {
                 ),
                 comment,
             }])
+        } else if let Some(cond) = match_simple("MRS", mnemonic) {
+            let target = self.parse_register()?;
+            self.parse_comma()?;
+            let psr = match self.parse_mnemonic_or_label()? {
+                "CPSR" | "CPSR_ALL" => Psr::Cpsr,
+                "SPSR" | "SPSR_ALL" => Psr::Spsr,
+                _ => return Err(LineError::InvalidPsr),
+            };
+            let comment = self.parse_comment()?;
+            Ok(vec![AsmLine {
+                line_number: self.line_number,
+                contents: AsmLineContents::Instr(cond, AsmInstr::Mrs { psr, target }),
+                comment,
+            }])
+        } else if let Some(cond) = match_simple("MSR", mnemonic) {
+            let (psr, flags) = match self.parse_mnemonic_or_label()? {
+                "CPSR" | "CPSR_ALL" => (Psr::Cpsr, false),
+                "SPSR" | "SPSR_ALL" => (Psr::Spsr, false),
+                "CPSR_FLG" => (Psr::Cpsr, true),
+                "SPSR_FLG" => (Psr::Spsr, true),
+                _ => return Err(LineError::InvalidPsr),
+            };
+            self.parse_comma()?;
+            if flags {
+                match self.parse_register() {
+                    Ok(reg) => {
+                        let comment = self.parse_comment()?;
+                        Ok(vec![AsmLine {
+                            line_number: self.line_number,
+                            contents: AsmLineContents::Instr(
+                                cond,
+                                AsmInstr::Msr {
+                                    psr,
+                                    source: MsrSource::RegisterFlags(reg),
+                                },
+                            ),
+                            comment,
+                        }])
+                    }
+                    Err(_) => {
+                        let exp = self.parse_expression()?;
+                        let comment = self.parse_comment()?;
+                        Ok(vec![AsmLine {
+                            line_number: self.line_number,
+                            contents: AsmLineContents::Instr(
+                                cond,
+                                AsmInstr::Msr {
+                                    psr,
+                                    source: MsrSource::Flags(exp),
+                                },
+                            ),
+                            comment,
+                        }])
+                    }
+                }
+            } else {
+                let reg = self.parse_register()?;
+                let comment = self.parse_comment()?;
+                Ok(vec![AsmLine {
+                    line_number: self.line_number,
+                    contents: AsmLineContents::Instr(
+                        cond,
+                        AsmInstr::Msr {
+                            psr,
+                            source: MsrSource::Register(reg),
+                        },
+                    ),
+                    comment,
+                }])
+            }
+        } else if let Some(cond) = match_simple("SWI", mnemonic) {
+            self.parse_whitespace();
+            let num = self.parse_number()? as u32;
+            let comment = self.parse_comment()?;
+            Ok(vec![AsmLine {
+                line_number: self.line_number,
+                contents: AsmLineContents::Instr(
+                    cond,
+                    AsmInstr::SoftwareInterrupt { comment: num },
+                ),
+                comment,
+            }])
         } else if allow_labels {
-            self.parse_line(false).map(|mut x| {
-                x.insert(
-                    0,
-                    AsmLine {
-                        line_number: self.line_number,
-                        contents: AsmLineContents::Label(mnemonic.to_owned()),
-                        comment: String::new(),
-                    },
-                );
-                x
-            })
+            self.parse_whitespace();
+            if self.parse_exact("EQU") {
+                self.parse_whitespace();
+                let expr = self.parse_expression()?;
+                let comment = self.parse_comment()?;
+                Ok(vec![AsmLine {
+                    line_number: self.line_number,
+                    contents: AsmLineContents::Equ(mnemonic.to_owned(), expr),
+                    comment,
+                }])
+            } else {
+                let line_number = self.line_number;
+                self.parse_line(false).map(|mut x| {
+                    x.insert(
+                        0,
+                        AsmLine {
+                            line_number,
+                            contents: AsmLineContents::Label(mnemonic.to_owned()),
+                            comment: String::new(),
+                        },
+                    );
+                    x
+                })
+            }
         } else {
             Err(LineError::UnrecognisedOpcode(mnemonic.to_owned()))
         }
@@ -281,12 +379,44 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> ParseResult<Expression> {
-        self.parse_expression_atom()
+        self.parse_expression_or()
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn parse_binary(
+        &mut self,
+        patterns: &[(
+            &'static str,
+            fn(Box<Expression>, Box<Expression>) -> Expression,
+        )],
+        lower: impl Fn(&mut Self) -> ParseResult<Expression>,
+    ) -> ParseResult<Expression> {
+        let lhs = lower(self)?;
+        self.parse_whitespace();
+        for (pattern, callback) in patterns {
+            if self.parse_exact(pattern) {
+                self.parse_whitespace();
+                let rhs = lower(self)?;
+                return Ok(callback(Box::new(lhs), Box::new(rhs)));
+            }
+        }
+        Ok(lhs)
+    }
+
+    fn parse_expression_or(&mut self) -> ParseResult<Expression> {
+        self.parse_binary(&[("OR", Expression::Or)], Self::parse_expression_shift)
+    }
+
+    fn parse_expression_shift(&mut self) -> ParseResult<Expression> {
+        self.parse_binary(
+            &[("LSL", Expression::Lsl), ("LSR", Expression::Lsr)],
+            Self::parse_expression_atom,
+        )
     }
 
     fn parse_expression_atom(&mut self) -> ParseResult<Expression> {
         self.parse_whitespace();
-        if self.parse_exact("#") {
+        if self.parse_exact("#") || self.remaining.starts_with(|c: char| c.is_ascii_digit()) {
             self.parse_number().map(Expression::Constant)
         } else {
             Ok(Expression::Label(

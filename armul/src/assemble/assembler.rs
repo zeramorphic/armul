@@ -17,6 +17,7 @@ pub fn assemble(lines: Vec<AsmLine>) -> Result<AssemblerOutput, AssemblerError> 
         .iter()
         .filter_map(|line| match &line.contents {
             AsmLineContents::Label(label) => Some(label),
+            AsmLineContents::Equ(label, _) => Some(label),
             _ => None,
         })
         .map(|x| (x.to_owned(), 0))
@@ -71,6 +72,14 @@ fn single_pass(lines: &[AsmLine], output: &mut AssemblerOutput) -> Result<bool, 
                             error,
                         })?,
                 );
+            }
+            AsmLineContents::Equ(name, expression) => {
+                let value = expression.evaluate(line.line_number, output)? as u32;
+                let entry = output.labels.entry(name.to_owned()).or_default();
+                if *entry != value {
+                    anything_changed = true;
+                    *entry = value;
+                }
             }
         }
     }
@@ -127,7 +136,18 @@ fn assemble_instr(
             })
         }
         AsmInstr::Mrs { psr, target } => todo!(),
-        AsmInstr::Msr { psr, source } => todo!(),
+        AsmInstr::Msr { psr, source } => Ok(vec![Instr::Msr {
+            psr: *psr,
+            source: match source {
+                syntax::MsrSource::Register(register) => instr::MsrSource::Register(*register),
+                syntax::MsrSource::RegisterFlags(register) => {
+                    instr::MsrSource::RegisterFlags(*register)
+                }
+                syntax::MsrSource::Flags(expression) => {
+                    instr::MsrSource::Flags(expression.evaluate(line_number, output)? as u32)
+                }
+            },
+        }]),
         AsmInstr::Multiply {
             set_condition_codes,
             dest,
@@ -169,7 +189,9 @@ fn assemble_instr(
             source,
             base,
         } => todo!(),
-        AsmInstr::SoftwareInterrupt { comment } => todo!(),
+        AsmInstr::SoftwareInterrupt { comment } => {
+            Ok(vec![Instr::SoftwareInterrupt { comment: *comment }])
+        }
     }
 }
 
@@ -228,7 +250,15 @@ impl Expression {
                     error: LineError::LabelNotFound(label.to_owned()),
                 }),
             },
-            Expression::Add(expression, expression1) => todo!(),
+            Expression::Or(lhs, rhs) => {
+                Ok(lhs.evaluate(line_number, output)? | rhs.evaluate(line_number, output)?)
+            }
+            Expression::Lsl(lhs, rhs) => {
+                Ok(lhs.evaluate(line_number, output)? << rhs.evaluate(line_number, output)?)
+            }
+            Expression::Lsr(lhs, rhs) => Ok((lhs.evaluate(line_number, output)? as u64
+                >> rhs.evaluate(line_number, output)?)
+                as i64),
         }
     }
 }

@@ -14,6 +14,7 @@ pub enum AsmLineContents {
     Empty,
     Label(String),
     Instr(Cond, AsmInstr),
+    Equ(String, Expression),
 }
 
 /// An instruction that might contain expressions or labels.
@@ -129,5 +130,7 @@ pub enum MsrSource {
 pub enum Expression {
     Constant(i64),
     Label(String),
-    Add(Box<Expression>, Box<Expression>),
+    Or(Box<Expression>, Box<Expression>),
+    Lsl(Box<Expression>, Box<Expression>),
+    Lsr(Box<Expression>, Box<Expression>),
 }

@@ -34,6 +34,7 @@ pub enum LineError {
     OffsetOutOfRange,
     ImmediateOutOfRange(u32),
     InvalidShiftType,
+    InvalidPsr,
 }
 
 #[derive(Debug)]

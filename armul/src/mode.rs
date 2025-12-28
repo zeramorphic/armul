@@ -3,6 +3,7 @@
 
 use std::fmt::Display;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     /// THe normal ARM program execution state.
     Usr,

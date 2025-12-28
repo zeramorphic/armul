@@ -1,8 +1,9 @@
 //! A model of the ARM7TDMI processor.
 
 use crate::{
-    instr::{DataOp, DataOperand, Instr, Psr, Register, Shift, ShiftAmount, ShiftType},
+    instr::{DataOp, DataOperand, Instr, MsrSource, Psr, Register, Shift, ShiftAmount, ShiftType},
     memory::Memory,
+    mode::Mode,
     registers::Registers,
 };
 
@@ -10,6 +11,14 @@ use crate::{
 pub struct Processor {
     registers: Registers,
     memory: Memory,
+    state: ProcessorState,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessorState {
+    #[default]
+    Running,
+    Stopped,
 }
 
 impl Processor {
@@ -27,6 +36,10 @@ impl Processor {
 
     pub fn memory_mut(&mut self) -> &mut Memory {
         &mut self.memory
+    }
+
+    pub fn state(&self) -> ProcessorState {
+        self.state
     }
 
     pub fn poll(&mut self) -> ProcessorResult {
@@ -68,7 +81,7 @@ impl Processor {
                 self.execute_data_processing(pc, set_condition_codes, op, dest, op1, op2, listener)
             }
             Instr::Mrs { psr, target } => todo!(),
-            Instr::Msr { psr, source } => todo!(),
+            Instr::Msr { psr, source } => self.execute_msr(pc, psr, source, listener),
             Instr::Multiply {
                 set_condition_codes,
                 dest,
@@ -110,7 +123,14 @@ impl Processor {
                 source,
                 base,
             } => todo!(),
-            Instr::SoftwareInterrupt { comment } => todo!(),
+            Instr::SoftwareInterrupt { comment } => match comment {
+                2 => {
+                    // Halt the processor.
+                    self.state = ProcessorState::Stopped;
+                    Ok(())
+                }
+                _ => Err(ProcessorError::InvalidSwi),
+            },
         }
     }
 
@@ -297,6 +317,47 @@ impl Processor {
         Ok(())
     }
 
+    #[inline]
+    fn execute_msr(
+        &mut self,
+        pc: u32,
+        psr: Psr,
+        source: MsrSource,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        listener.cycle(Cycle::Seq, 1, pc);
+        let mode = self.registers.mode().unwrap_or(Mode::Usr);
+        match source {
+            MsrSource::Register(register) => {
+                let value = self.registers.get(register);
+                let target = self
+                    .registers
+                    .get_physical_mut(psr.physical(mode).ok_or(ProcessorError::NoSpsr)?);
+                if mode == Mode::Usr {
+                    *target = (*target & 0x0FFFFFFF) | (value & 0xF0000000);
+                } else {
+                    *target = value;
+                }
+                Ok(())
+            }
+            MsrSource::RegisterFlags(register) => {
+                let value = self.registers.get(register);
+                let target = self
+                    .registers
+                    .get_physical_mut(psr.physical(mode).ok_or(ProcessorError::NoSpsr)?);
+                *target = (*target & 0x0FFFFFFF) | (value & 0xF0000000);
+                Ok(())
+            }
+            MsrSource::Flags(flags) => {
+                let target = self
+                    .registers
+                    .get_physical_mut(psr.physical(mode).ok_or(ProcessorError::NoSpsr)?);
+                *target = (*target & 0x0FFFFFFF) | (flags & 0xF0000000);
+                Ok(())
+            }
+        }
+    }
+
     /// Evaluate the given operand to a data processing instruction.
     /// The output is given together with a carry out bit from the barrel shifter.
     /// If no shift operation was needed, we return the current value of the
@@ -425,9 +486,10 @@ pub enum ProcessorError {
     /// The program counter register (PC, or R15) was used in a register
     /// specified shift amount.
     PcUsedInShift,
-    /// The SPSR was accessed in a data processing operation,
-    /// but one was not present in the current mode.
+    /// The SPSR was accessed, but one was not present in the current mode.
     NoSpsr,
+    /// An invalid software interrupt was issued.
+    InvalidSwi,
 }
 
 #[cfg(test)]

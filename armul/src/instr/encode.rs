@@ -1,6 +1,6 @@
 use crate::{
     assemble::LineError,
-    instr::{Cond, DataOp, DataOperand, Instr, Register, Shift, ShiftType},
+    instr::{Cond, DataOp, DataOperand, Instr, MsrSource, Psr, Register, Shift, ShiftType},
 };
 
 use super::ShiftAmount;
@@ -41,7 +41,21 @@ impl Instr {
                 | (dest as u32) << 12
                 | Instr::encode_data_operand(op2)?),
             Instr::Mrs { psr, target } => todo!(),
-            Instr::Msr { psr, source } => todo!(),
+            Instr::Msr { psr, source } => {
+                let signature = 0b1_0010_1000_1111 << 12;
+                let dest = match psr {
+                    Psr::Cpsr => 0,
+                    Psr::Spsr => 1 << 22,
+                };
+                let source = match source {
+                    MsrSource::Register(register) => (1 << 16) | register as u32,
+                    MsrSource::RegisterFlags(register) => register as u32,
+                    MsrSource::Flags(flags) => {
+                        (1 << 25) | Instr::encode_constant(flags & 0xF0000000)?
+                    }
+                };
+                Ok(signature | dest | source)
+            }
             Instr::Multiply {
                 set_condition_codes,
                 dest,
@@ -83,7 +97,7 @@ impl Instr {
                 source,
                 base,
             } => todo!(),
-            Instr::SoftwareInterrupt { comment } => todo!(),
+            Instr::SoftwareInterrupt { comment } => Ok(0b1111 << 24 | comment & 0x00FFFFFF),
         }
     }
 

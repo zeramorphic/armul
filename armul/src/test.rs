@@ -5,13 +5,15 @@ use std::collections::BTreeMap;
 use crate::{
     assemble::{AssemblerError, AssemblerOutput, assemble},
     instr::{Instr, Register},
-    processor::{Processor, test::TestProcessorListener},
+    processor::{Processor, ProcessorError, ProcessorState, test::TestProcessorListener},
     registers::PhysicalRegister,
 };
 
 #[derive(Debug)]
 pub enum TestError {
+    FileError(String),
     AssemblerError(AssemblerError),
+    ProcessorError(ProcessorError),
     InvalidComment(String),
     InvalidParams(&'static str, String),
     StepsNotGiven,
@@ -23,6 +25,8 @@ pub fn test(src: &str) -> Result<(), TestError> {
 
     // Extract the test comments at the start of the file.
     let mut steps = None;
+    // Whether the procedure is expected to halt itself within the given number of steps.
+    let mut halts = false;
     let mut output = BTreeMap::<PhysicalRegister, u32>::new();
     for line in src.lines() {
         if let Some(comment) = line.trim_start().strip_prefix(";!") {
@@ -87,7 +91,15 @@ pub fn test(src: &str) -> Result<(), TestError> {
                             params
                                 .parse::<usize>()
                                 .map_err(|x| TestError::InvalidParams("steps", x.to_string()))?,
-                        )
+                        );
+                    }
+                    "HALTS" => {
+                        steps = Some(
+                            params
+                                .parse::<usize>()
+                                .map_err(|x| TestError::InvalidParams("steps", x.to_string()))?,
+                        );
+                        halts = true;
                     }
                     _ => return Err(TestError::InvalidComment(comment.to_owned())),
                 }
@@ -101,19 +113,28 @@ pub fn test(src: &str) -> Result<(), TestError> {
 
     let mut proc = Processor::default();
     let mut listener = TestProcessorListener::default();
+    let mut halted = false;
     proc.memory_mut().set_words_aligned(0x0, &assembled.instrs);
-    for _ in 0..48 {
+    for i in 0..steps {
         let pc = proc.registers().get(Register::R15);
         println!();
         println!("{}", proc.registers());
         println!(
-            "About to execute {}",
+            "Step {}: about to execute {}",
+            i + 1,
             Instr::decode(proc.memory().get_word_aligned(pc))
                 .map_or_else(|| "???".to_owned(), |(cond, i)| Instr::display(&i, cond))
         );
-        proc.try_execute(&mut listener).unwrap();
+        proc.try_execute(&mut listener)
+            .map_err(TestError::ProcessorError)?;
         // Advance the program counter.
         *proc.registers_mut().get_mut(Register::R15) += 4;
+
+        if proc.state() == ProcessorState::Stopped {
+            println!("Halted.");
+            halted = true;
+            break;
+        }
     }
 
     println!("Terminated.");
@@ -122,6 +143,7 @@ pub fn test(src: &str) -> Result<(), TestError> {
     println!("{}", proc.registers());
 
     // Assert that all of the results were as expected.
+    assert_eq!(halts, halted, "halting behaviour mismatch");
     for (reg, value) in output {
         assert_eq!(
             proc.registers().get_physical(reg),
