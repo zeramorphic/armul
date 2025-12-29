@@ -91,7 +91,7 @@ pub enum AsmInstr {
         base: Register,
     },
     SoftwareInterrupt {
-        comment: u32,
+        comment: Expression,
     },
 }
 
@@ -105,6 +105,15 @@ pub enum DataOperand {
 pub struct Shift {
     pub shift_type: ShiftType,
     pub shift_amount: ShiftAmount,
+}
+
+impl Default for Shift {
+    fn default() -> Self {
+        Self {
+            shift_type: ShiftType::LogicalLeft,
+            shift_amount: ShiftAmount::Constant(Expression::Constant(0)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -125,7 +134,7 @@ pub enum MsrSource {
 
 #[derive(Debug, Clone)]
 pub enum Expression {
-    Constant(i64),
+    Constant(u32),
     Label(String),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),

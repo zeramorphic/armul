@@ -98,7 +98,7 @@ fn single_pass(
                 );
             }
             AsmLineContents::Equ(name, expression) => {
-                let value = expression.evaluate(line.line_number, output)? as u32;
+                let value = expression.evaluate(line.line_number, output)?;
                 let entry = output.labels.entry(name.to_owned()).or_default();
                 if *entry != value {
                     anything_changed = true;
@@ -106,7 +106,7 @@ fn single_pass(
                 }
             }
             AsmLineContents::DefWord(expression) => {
-                let value = expression.evaluate(line.line_number, output)? as u32;
+                let value = expression.evaluate(line.line_number, output)?;
                 output.instrs.push(value);
             }
         }
@@ -127,7 +127,7 @@ fn assemble_instr(
         }
         AsmInstr::Branch { link, target } => {
             let address = target.evaluate(line_number, output)?;
-            let offset = address - (program_counter as i64 + 8);
+            let offset = (address as i32).wrapping_sub(program_counter as i32 + 8);
             // Check that the offset is 4 * some signed 24-bit value.
             if offset % 4 != 0 {
                 return Err(AssemblerError {
@@ -143,7 +143,7 @@ fn assemble_instr(
             }
             Ok(vec![Instr::Branch {
                 link: *link,
-                offset: offset as i32,
+                offset,
             }])
         }
         AsmInstr::Adr {
@@ -188,7 +188,7 @@ fn assemble_instr(
                     instr::MsrSource::RegisterFlags(*register)
                 }
                 syntax::MsrSource::Flags(expression) => {
-                    instr::MsrSource::Flags(expression.evaluate(line_number, output)? as u32)
+                    instr::MsrSource::Flags(expression.evaluate(line_number, output)?)
                 }
             },
         }]),
@@ -197,9 +197,9 @@ fn assemble_instr(
         AsmInstr::SingleTransfer { .. } => todo!(),
         AsmInstr::BlockTransfer { .. } => todo!(),
         AsmInstr::Swap { .. } => todo!(),
-        AsmInstr::SoftwareInterrupt { comment } => {
-            Ok(vec![Instr::SoftwareInterrupt { comment: *comment }])
-        }
+        AsmInstr::SoftwareInterrupt { comment } => Ok(vec![Instr::SoftwareInterrupt {
+            comment: comment.evaluate(line_number, output)?,
+        }]),
     }
 }
 
@@ -212,7 +212,7 @@ fn with_operand(
 ) -> Result<Vec<Instr>, AssemblerError> {
     match op {
         syntax::DataOperand::Constant(expression) => {
-            let value = expression.evaluate(line_number, output)? as u32;
+            let value = expression.evaluate(line_number, output)?;
             // Attempt to encode this 32-bit value in just 12 bits.
             let (mut instrs, operand) = encode_constant(line_number, heal, value)?;
             instrs.push(instr(operand));
@@ -312,11 +312,11 @@ impl Expression {
         &self,
         line_number: usize,
         output: &AssemblerOutput,
-    ) -> Result<i64, AssemblerError> {
+    ) -> Result<u32, AssemblerError> {
         match self {
             Expression::Constant(x) => Ok(*x),
             Expression::Label(label) => match output.labels.get(label) {
-                Some(address) => Ok(*address as i64),
+                Some(address) => Ok(*address),
                 None => Err(AssemblerError {
                     line_number,
                     error: LineError::LabelNotFound(label.to_owned()),
@@ -334,9 +334,9 @@ impl Expression {
             Expression::Lsl(lhs, rhs) => {
                 Ok(lhs.evaluate(line_number, output)? << rhs.evaluate(line_number, output)?)
             }
-            Expression::Lsr(lhs, rhs) => Ok((lhs.evaluate(line_number, output)? as u64
-                >> rhs.evaluate(line_number, output)?)
-                as i64),
+            Expression::Lsr(lhs, rhs) => {
+                Ok(lhs.evaluate(line_number, output)? >> rhs.evaluate(line_number, output)?)
+            }
         }
     }
 }

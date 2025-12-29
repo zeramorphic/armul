@@ -22,7 +22,7 @@ pub struct AssemblerError {
 
 #[derive(Debug)]
 pub enum LineError {
-    ExpectedComma(String),
+    ParseError(String),
     ExpectedRegister(String),
     UnrecognisedOpcode(String),
     ExpectedMnemonic(String),
@@ -49,9 +49,9 @@ pub struct AssemblerWarning {
 #[derive(Debug)]
 pub enum LineWarning {}
 
-pub fn assemble(src: &str) -> Result<AssemblerOutput, AssemblerError> {
+pub fn assemble(src: &str) -> Result<AssemblerOutput, Vec<AssemblerError>> {
     crate::assemble::assembler::assemble(
-        crate::assemble::parser::Parser::new(&src.to_uppercase()).parse()?,
+        crate::assemble::parser::parse(src)?,
         if src.lines().any(|line| line.trim() == "; HEAL OFF") {
             HealStrategy::Off
         } else if src.lines().any(|line| line.trim() == "; HEAL SIMPLE") {
@@ -60,4 +60,5 @@ pub fn assemble(src: &str) -> Result<AssemblerOutput, AssemblerError> {
             HealStrategy::Advanced(crate::instr::Register::R12)
         },
     )
+    .map_err(|e| vec![e])
 }

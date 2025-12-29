@@ -12,7 +12,7 @@ use crate::{
 #[derive(Debug)]
 pub enum TestError {
     FileError(String),
-    AssemblerError(AssemblerError),
+    AssemblerError(Vec<AssemblerError>),
     ProcessorError(ProcessorError),
     InvalidComment(String),
     InvalidParams(&'static str, String),
@@ -22,6 +22,13 @@ pub enum TestError {
 pub fn test(src: &str) -> Result<(), TestError> {
     let assembled = assemble(src).map_err(TestError::AssemblerError)?;
     println!("assembled in {} passes", assembled.passes);
+    for instr in &assembled.instrs {
+        println!(
+            "{}",
+            Instr::decode(*instr)
+                .map_or_else(|| "???".to_owned(), |(cond, i)| Instr::display(&i, cond))
+        );
+    }
 
     // Extract the test comments at the start of the file.
     let mut steps = None;
@@ -164,7 +171,7 @@ fn parse_param(assembled: &AssemblerOutput, params: &str) -> Result<u32, TestErr
         Ok(x) => Ok(x as u32),
         Err(_) => {
             // Try to parse it as a label instead.
-            match assembled.labels.get(&params.to_uppercase()) {
+            match assembled.labels.get(params) {
                 Some(offset) => Ok(*offset),
                 None => Err(TestError::InvalidParams("parameter", params.to_string())),
             }
