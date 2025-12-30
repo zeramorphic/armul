@@ -84,8 +84,32 @@ impl Processor {
             }
             Instr::Mrs { psr, target } => self.execute_mrs(pc, psr, target, listener),
             Instr::Msr { psr, source } => self.execute_msr(pc, psr, source, listener),
-            Instr::Multiply { .. } => todo!(),
-            Instr::MultiplyLong { .. } => todo!(),
+            Instr::Multiply {
+                set_condition_codes,
+                dest,
+                op1,
+                op2,
+                addend,
+            } => self.execute_multiply(pc, set_condition_codes, dest, op1, op2, addend, listener),
+            Instr::MultiplyLong {
+                set_condition_codes,
+                signed,
+                accumulate,
+                dest_hi,
+                dest_lo,
+                op1,
+                op2,
+            } => self.execute_multiply_long(
+                pc,
+                set_condition_codes,
+                signed,
+                accumulate,
+                dest_hi,
+                dest_lo,
+                op1,
+                op2,
+                listener,
+            ),
             Instr::SingleTransfer { .. } => todo!(),
             Instr::BlockTransfer { .. } => todo!(),
             Instr::Swap { .. } => todo!(),
@@ -358,6 +382,130 @@ impl Processor {
                 Ok(())
             }
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    fn execute_multiply(
+        &mut self,
+        pc: u32,
+        set_condition_codes: bool,
+        dest: Register,
+        op1: Register,
+        op2: Register,
+        addend: Option<Register>,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        // The multiplier op2 controls the cycle count.
+        listener.cycle(Cycle::Seq, 1, pc);
+        let multiplier = self.registers.get(op2);
+        let mut multiplier_cycles = 4;
+        // TODO: The data sheet refers to bit 32(!) of the multiplier, what on earth does that mean?
+        if [0xFF000000, 0x00000000].contains(&(multiplier & 0xFF000000)) {
+            multiplier_cycles -= 1;
+        }
+        if [0xFFFF0000, 0x00000000].contains(&(multiplier & 0xFFFF0000)) {
+            multiplier_cycles -= 1;
+        }
+        if [0xFFFFFF00, 0x00000000].contains(&(multiplier & 0xFFFFFF00)) {
+            multiplier_cycles -= 1;
+        }
+        if addend.is_some() {
+            multiplier_cycles += 1;
+        }
+        listener.cycle(Cycle::Internal, multiplier_cycles, pc);
+
+        let result = self
+            .registers
+            .get(op1)
+            .wrapping_mul(multiplier)
+            .wrapping_add(addend.map(|reg| self.registers.get(reg)).unwrap_or(0));
+
+        // The spec says that the carry flag is set to a meaningless value.
+        // We do know what happens in hardware: <https://bmchtech.github.io/post/multiply/>
+        // but I'm not going to implement that.
+        if set_condition_codes {
+            self.registers.set_carry(false);
+            self.registers.set_negative(result & (1 << 31) != 0);
+            self.registers.set_zero(result == 0);
+        }
+
+        *self.registers.get_mut(dest) = result;
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    fn execute_multiply_long(
+        &mut self,
+        pc: u32,
+        set_condition_codes: bool,
+        signed: bool,
+        accumulate: bool,
+        dest_hi: Register,
+        dest_lo: Register,
+        op1: Register,
+        op2: Register,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        // The multiplier op2 controls the cycle count.
+        listener.cycle(Cycle::Seq, 1, pc);
+        let multiplier = self.registers.get(op2);
+        let mut multiplier_cycles = 5;
+        if signed {
+            if [0xFF000000, 0x00000000].contains(&(multiplier & 0xFF000000)) {
+                multiplier_cycles -= 1;
+            }
+            if [0xFFFF0000, 0x00000000].contains(&(multiplier & 0xFFFF0000)) {
+                multiplier_cycles -= 1;
+            }
+            if [0xFFFFFF00, 0x00000000].contains(&(multiplier & 0xFFFFFF00)) {
+                multiplier_cycles -= 1;
+            }
+        } else {
+            if multiplier & 0xFF000000 == 0 {
+                multiplier_cycles -= 1;
+            }
+            if multiplier & 0xFFFF0000 == 0 {
+                multiplier_cycles -= 1;
+            }
+            if multiplier & 0xFFFFFF00 == 0 {
+                multiplier_cycles -= 1;
+            }
+        }
+        if accumulate {
+            multiplier_cycles += 1;
+        }
+        listener.cycle(Cycle::Internal, multiplier_cycles, pc);
+
+        let multiplicand = self.registers.get(op1);
+        let addend = if accumulate {
+            (self.registers.get(dest_hi) as u64) << 32 | self.registers.get(dest_lo) as u64
+        } else {
+            0
+        };
+
+        let result = if signed {
+            (multiplicand as i32 as i64)
+                .wrapping_mul(multiplier as i32 as i64)
+                .wrapping_add_unsigned(addend) as u64
+        } else {
+            (multiplicand as u64)
+                .wrapping_mul(multiplier as u64)
+                .wrapping_add(addend)
+        };
+
+        if set_condition_codes {
+            self.registers.set_carry(false);
+            self.registers.set_negative(result & (1 << 31) != 0);
+            self.registers.set_zero(result == 0);
+        }
+
+        *self.registers.get_mut(dest_hi) = (result >> 32) as u32;
+        *self.registers.get_mut(dest_lo) = result as u32;
+
+        Ok(())
     }
 
     /// Evaluate the given operand to a data processing instruction.

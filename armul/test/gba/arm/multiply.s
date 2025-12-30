@@ -1,6 +1,6 @@
 ; Tests for multiply operations
 
-;! halts 100
+;! halts 200
 
 FLAG_N equ 1 lsl 31
 FLAG_Z equ 1 lsl 30
