@@ -1,6 +1,9 @@
 use crate::{
     assemble::LineError,
-    instr::{Cond, DataOperand, Instr, MsrSource, Psr, RotatedConstant, Shift, ShiftType},
+    instr::{
+        Cond, DataOperand, Instr, MsrSource, Psr, RotatedConstant, Shift, ShiftType, TransferKind,
+        TransferSize,
+    },
 };
 
 use super::ShiftAmount;
@@ -94,7 +97,56 @@ impl Instr {
                 | (op2 as u32) << 8
                 | 0b1001 << 4
                 | (op1 as u32)),
-            Instr::SingleTransfer { .. } => todo!(),
+            Instr::SingleTransfer {
+                kind,
+                size: size @ (TransferSize::Byte | TransferSize::Word),
+                write_back,
+                offset_positive,
+                pre_index,
+                data_register,
+                base_register,
+                offset,
+            } => Ok((1 << 26)
+                | (if pre_index { 1 << 24 } else { 0 })
+                | (if offset_positive { 1 << 23 } else { 0 })
+                | (if size == TransferSize::Byte {
+                    1 << 22
+                } else {
+                    0
+                })
+                | (if write_back { 1 << 21 } else { 0 })
+                | (match kind {
+                    TransferKind::Store => 0,
+                    TransferKind::Load => 1 << 20,
+                })
+                | (base_register as u32) << 16
+                | (data_register as u32) << 12
+                | Instr::encode_data_operand(offset)?),
+            Instr::SingleTransfer {
+                kind,
+                size,
+                write_back,
+                offset_positive,
+                pre_index,
+                data_register,
+                base_register,
+                offset,
+            } => Ok((if pre_index { 1 << 24 } else { 0 })
+                | (if offset_positive { 1 << 23 } else { 0 })
+                | (if write_back { 1 << 21 } else { 0 })
+                | (match kind {
+                    TransferKind::Store => 0,
+                    TransferKind::Load => 1 << 20,
+                })
+                | (base_register as u32) << 16
+                | (data_register as u32) << 12
+                | (match size {
+                    TransferSize::HalfWord => 0b1011_0000,
+                    TransferSize::SignExtendedByte => 0b1101_0000,
+                    TransferSize::SignExtendedHalfWord => 0b1111_0000,
+                    _ => unreachable!(),
+                })
+                | (todo!() as u32)),
             Instr::BlockTransfer { .. } => todo!(),
             Instr::Swap { .. } => todo!(),
             Instr::SoftwareInterrupt { comment } => Ok(0b1111 << 24 | comment & 0x00FFFFFF),

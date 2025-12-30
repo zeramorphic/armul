@@ -196,16 +196,7 @@ impl Instr {
                     pre_index: instr & (1 << 24) != 0,
                     data_register: Register::from_u4(instr, 12),
                     base_register: Register::from_u4(instr, 16),
-                    offset: if instr & (1 << 25) == 0 {
-                        // The offset is an immediate value.
-                        DataOperand::Constant(RotatedConstant {
-                            immediate: instr as u8,
-                            half_rotate: ((instr >> 8) & 0xF) as u8,
-                        })
-                    } else {
-                        // The offset is a shifted register.
-                        Instr::decode_shifted_register(instr)
-                    },
+                    offset: todo!(),
                 })
             }
             0b100 => {

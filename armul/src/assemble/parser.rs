@@ -1,6 +1,10 @@
 //! A parser for ARM assembly.
 
-use std::fmt::Display;
+use std::{
+    cell::Cell,
+    fmt::{Debug, Display},
+    rc::Rc,
+};
 
 use chumsky::{
     input::{Stream, ValueInput},
@@ -35,7 +39,7 @@ pub fn parse(src: &str) -> Result<Vec<AsmLine>, Vec<AssemblerError>> {
         .map(|(index, _)| index)
         .collect::<Vec<_>>();
 
-    parser(&line_indices)
+    parser(&line_indices, &Default::default())
         .parse(token_stream)
         .into_result()
         .map_err(|errs| {
@@ -99,10 +103,16 @@ enum Token<'a> {
     LParen,
     #[token(")")]
     RParen,
+    #[token("[")]
+    LSquare,
+    #[token("]")]
+    RSquare,
     #[token(",")]
     Comma,
     #[token("#")]
     Hash,
+    #[token("!")]
+    Exclamation,
 
     #[regex(r"[ \t\f]+")]
     Whitespace,
@@ -205,15 +215,15 @@ impl<'a> Token<'a> {
                 ("smlal", "", Opcode::MulLong(false, true, true)),
                 ("smlal", "s", Opcode::MulLong(true, true, true)),
                 ("ldr", "", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Word, false)),
-                ("ldr", "b", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Byte, true)),
-                ("ldr", "t", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Word, false)),
+                ("ldr", "b", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Byte, false)),
+                ("ldr", "t", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Word, true)),
                 ("ldr", "bt", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Byte, true)),
                 ("ldr", "h", Opcode::SingleTransfer(TransferKind::Load, TransferSize::HalfWord, false)),
                 ("ldr", "sh", Opcode::SingleTransfer(TransferKind::Load, TransferSize::SignExtendedHalfWord, false)),
                 ("ldr", "sb", Opcode::SingleTransfer(TransferKind::Load, TransferSize::SignExtendedByte, false)),
                 ("str", "", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Word, false)),
-                ("str", "b", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Byte, true)),
-                ("str", "t", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Word, false)),
+                ("str", "b", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Byte, false)),
+                ("str", "t", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Word, true)),
                 ("str", "bt", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Byte, true)),
                 ("str", "h", Opcode::SingleTransfer(TransferKind::Store, TransferSize::HalfWord, false)),
                 ("str", "sh", Opcode::SingleTransfer(TransferKind::Store, TransferSize::SignExtendedHalfWord, false)),
@@ -363,8 +373,8 @@ impl Display for Opcode {
             }
             Opcode::SingleTransfer(transfer_kind, transfer_size, t) => {
                 match transfer_kind {
-                    TransferKind::Store => write!(f, "STM")?,
-                    TransferKind::Load => write!(f, "LDM")?,
+                    TransferKind::Store => write!(f, "STR")?,
+                    TransferKind::Load => write!(f, "LDR")?,
                 };
                 write!(f, "{transfer_size}")?;
                 if t { write!(f, "T") } else { Ok(()) }
@@ -432,6 +442,12 @@ impl Display for LexError {
     }
 }
 
+impl<'a> Debug for Token<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
 impl<'a> Display for Token<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -452,8 +468,11 @@ impl<'a> Display for Token<'a> {
             Token::Div => write!(f, "/"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),
+            Token::LSquare => write!(f, "["),
+            Token::RSquare => write!(f, "]"),
             Token::Comma => write!(f, ","),
             Token::Hash => write!(f, "#"),
+            Token::Exclamation => write!(f, "!"),
             Token::Whitespace => write!(f, "whitespace"),
             Token::Newline => write!(f, "newline"),
             Token::Comment(_) => write!(f, "comment"),
@@ -468,13 +487,23 @@ fn line_number(line_indices: &[usize], span: SimpleSpan) -> usize {
         + 1
 }
 
+#[derive(Default, Clone, Copy)]
+struct LabelGenerator(u32);
+
+fn generate_label(generator: &Rc<Cell<LabelGenerator>>) -> String {
+    let index = generator.get().0;
+    generator.set(LabelGenerator(index + 1));
+    format!("__generatedlabel_{index}")
+}
+
 fn parser<'tokens, 'src: 'tokens, I>(
     line_indices: &[usize],
+    generator: &Rc<Cell<LabelGenerator>>,
 ) -> impl Parser<'tokens, I, Vec<AsmLine>, extra::Err<Rich<'tokens, Token<'src>>>>
 where
     I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
 {
-    line_contents()
+    line_contents(generator)
         .or_not()
         .map(|x| x.unwrap_or_default())
         .spanned()
@@ -507,8 +536,9 @@ where
         .map(|x| x.into_iter().flatten().collect())
 }
 
-fn line_contents<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, Vec<AsmLineContents>, extra::Err<Rich<'tokens, Token<'src>>>>
+fn line_contents<'tokens, 'src: 'tokens, I>(
+    generator: &Rc<Cell<LabelGenerator>>,
+) -> impl Parser<'tokens, I, Vec<AsmLineContents>, extra::Err<Rich<'tokens, Token<'src>>>>
 where
     I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
 {
@@ -527,51 +557,89 @@ where
         .then_ignore(whitespace())
         .then((mnemonic.then_ignore(whitespace()).then(args)).or_not())
         .try_map(|(label, instr), span| match instr {
-            Some(((cond, opcode), args)) => {
-                process_instruction(opcode, args, span).map(|instr| (label, Some((cond, instr))))
-            }
+            Some(((cond, opcode), args)) => process_instruction(opcode, args, span, generator)
+                .map(|instr| (label, Some((cond, instr)))),
             None => Ok((label, None)),
         })
-        .try_map(|(label, instr), span| match (label, instr) {
-            (None, None) => Ok(Vec::new()),
-            (label, Some((cond, Processed::Instr(instr)))) => {
-                let mut result = Vec::new();
-                if let Some(label) = label {
-                    result.push(AsmLineContents::Label(label.to_owned()))
-                }
-                result.push(AsmLineContents::Instr(cond, instr));
-                Ok(result)
+        .try_map(|(label, instr), span| process_line_contents(label, instr, span))
+}
+
+fn process_line_contents(
+    label: Option<&str>,
+    instr: Option<(Cond, Processed)>,
+    span: SimpleSpan,
+) -> Result<Vec<AsmLineContents>, Rich<'_, Token<'_>>> {
+    match (label, instr) {
+        (None, None) => Ok(Vec::new()),
+        (label, Some((cond, Processed::Instr(instr)))) => {
+            let mut result = Vec::new();
+            if let Some(label) = label {
+                result.push(AsmLineContents::Label(label.to_owned()))
             }
-            (label, Some((cond, Processed::DefW(exprs)))) => {
-                let mut result = Vec::new();
-                if let Some(label) = label {
-                    result.push(AsmLineContents::Label(label.to_owned()))
-                }
-                if cond != Cond::AL {
-                    return Err(Rich::custom(span, "'defw' cannot have a condition flag"));
-                }
-                for expr in exprs {
-                    result.push(AsmLineContents::DefWord(expr));
-                }
-                Ok(result)
+            result.push(AsmLineContents::Instr(cond, instr));
+            Ok(result)
+        }
+        (label, Some((cond, Processed::DefW(expr)))) => {
+            let mut result = Vec::new();
+            if let Some(label) = label {
+                result.push(AsmLineContents::Label(label.to_owned()))
             }
-            (None, Some((_, Processed::Equ(_)))) => Err(Rich::custom(span, "'equ' needs a label")),
-            (Some(label), Some((cond, Processed::Equ(expr)))) => {
-                if cond != Cond::AL {
-                    return Err(Rich::custom(span, "'equ' cannot have a condition flag"));
-                }
-                Ok(vec![AsmLineContents::Equ(label.to_owned(), expr)])
+            if cond != Cond::AL {
+                return Err(Rich::custom(span, "'defw' cannot have a condition flag"));
             }
-            (Some(label), None) => Ok(vec![AsmLineContents::Label(label.to_owned())]),
-        })
+            result.push(AsmLineContents::DefWord(expr));
+            Ok(result)
+        }
+        (None, Some((_, Processed::Equ(_)))) => Err(Rich::custom(span, "'equ' needs a label")),
+        (Some(label), Some((cond, Processed::Equ(expr)))) => {
+            if cond != Cond::AL {
+                return Err(Rich::custom(span, "'equ' cannot have a condition flag"));
+            }
+            Ok(vec![AsmLineContents::Equ(label.to_owned(), expr)])
+        }
+        (mut label, Some((cond, Processed::Vec(items)))) => {
+            let mut result = Vec::new();
+            for item in items {
+                result.extend(process_line_contents(
+                    label.take(),
+                    Some((cond, item)),
+                    span,
+                )?);
+            }
+            if let Some(label) = label {
+                result.push(AsmLineContents::Label(label.to_owned()))
+            }
+            Ok(result)
+        }
+        (label, Some((_, Processed::Label(second_label)))) => {
+            let mut result = Vec::new();
+            if let Some(label) = label {
+                result.push(AsmLineContents::Label(label.to_owned()))
+            }
+            result.push(AsmLineContents::Label(second_label.to_owned()));
+            Ok(result)
+        }
+        (Some(label), None) => Ok(vec![AsmLineContents::Label(label.to_owned())]),
+    }
 }
 
 #[derive(Debug)]
 enum Argument {
     Register(Register),
-    Psr { psr: Psr, flag: bool },
+    /// The bool is whether the sign was positive.
+    SignedRegister(bool, Register),
+    Psr {
+        psr: Psr,
+        flag: bool,
+    },
     Shift(Shift),
     Expression(Expression),
+    /// `[Rd{,operand}*]{!}`
+    Address {
+        base_register: Register,
+        operands: Vec<Argument>,
+        write_back: bool,
+    },
 }
 
 fn argument<'tokens, 'src: 'tokens, I>()
@@ -579,19 +647,55 @@ fn argument<'tokens, 'src: 'tokens, I>()
 where
     I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
 {
-    choice((
-        register().map(Argument::Register),
-        shift().map(Argument::Shift),
-        expression().map(Argument::Expression),
-        select! {
-            Token::Psr((psr, flag)) => (psr, flag)
-        }
-        .map(|(psr, flag)| Argument::Psr { psr, flag }),
-    ))
+    recursive(|arg| {
+        choice((
+            register().map(Argument::Register),
+            custom(|inp| {
+                let checkpoint = inp.save();
+                let sign = match inp.next() {
+                    Some(Token::Sub) => Some(false),
+                    Some(Token::Add) => Some(true),
+                    _ => None,
+                };
+                if let Some(sign) = sign
+                    && let Some(Token::Register(reg)) = inp.next()
+                {
+                    return Ok(Argument::SignedRegister(sign, reg));
+                }
+                let span = inp.span_since(checkpoint.cursor());
+                inp.rewind(checkpoint);
+                Err(Rich::custom(span, "expected signed register"))
+            }),
+            shift().map(Argument::Shift),
+            expression().map(Argument::Expression),
+            select! {
+                Token::Psr((psr, flag)) => (psr, flag)
+            }
+            .map(|(psr, flag)| Argument::Psr { psr, flag }),
+            just(Token::LSquare)
+                .ignore_then(register())
+                .then(
+                    just(Token::Comma)
+                        .ignore_then(
+                            arg.padded_by(whitespace())
+                                .separated_by(just(Token::Comma))
+                                .collect::<Vec<_>>(),
+                        )
+                        .or_not(),
+                )
+                .then_ignore(just(Token::RSquare))
+                .then(just(Token::Exclamation).or_not().map(|x| x.is_some()))
+                .map(|((base, operands), write_back)| Argument::Address {
+                    base_register: base,
+                    operands: operands.unwrap_or_default(),
+                    write_back,
+                }),
+        ))
+    })
 }
 
 fn shift<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, Shift, extra::Err<Rich<'tokens, Token<'src>>>>
+-> impl Parser<'tokens, I, Shift, extra::Err<Rich<'tokens, Token<'src>>>> + Clone
 where
     I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
 {
@@ -618,7 +722,7 @@ where
 }
 
 fn register<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, Register, extra::Err<Rich<'tokens, Token<'src>>>>
+-> impl Parser<'tokens, I, Register, extra::Err<Rich<'tokens, Token<'src>>>> + Clone
 where
     I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
 {
@@ -628,7 +732,7 @@ where
 }
 
 fn expression<'tokens, 'src: 'tokens, I>()
--> impl Parser<'tokens, I, Expression, extra::Err<Rich<'tokens, Token<'src>>>>
+-> impl Parser<'tokens, I, Expression, extra::Err<Rich<'tokens, Token<'src>>>> + Clone
 where
     I: ValueInput<'tokens, Token = Token<'src>, Span = SimpleSpan>,
 {
@@ -687,15 +791,18 @@ where
 }
 
 enum Processed {
+    Label(String),
     Instr(AsmInstr),
     Equ(Expression),
-    DefW(Vec<Expression>),
+    DefW(Expression),
+    Vec(Vec<Processed>),
 }
 
 fn process_instruction<'tokens, 'src: 'tokens>(
     opcode: Opcode,
     mut args: Vec<Argument>,
     span: SimpleSpan,
+    generator: &Rc<Cell<LabelGenerator>>,
 ) -> Result<Processed, Rich<'tokens, Token<'src>>> {
     match opcode {
         Opcode::BranchExchange => {
@@ -1057,7 +1164,192 @@ fn process_instruction<'tokens, 'src: 'tokens>(
                 )),
             }
         }
-        Opcode::SingleTransfer(transfer_kind, transfer_size, _) => todo!(),
+        Opcode::SingleTransfer(kind, size, t_flag) => match args.len() {
+            2 => {
+                let [data_register, addr] = args.try_into().unwrap();
+                match (data_register, addr) {
+                    (Argument::Register(data_register), Argument::Expression(addr)) => {
+                        if t_flag {
+                            Err(Rich::custom(
+                                span,
+                                "T flag not permitted with expression address",
+                            ))
+                        } else {
+                            // Work out an offset to the given address,
+                            // or rather, make the assembler do the calculation shortly.
+                            let here = generate_label(generator);
+                            Ok(Processed::Vec(vec![
+                                Processed::Label(here.clone()),
+                                Processed::Instr(AsmInstr::SingleTransfer {
+                                    kind,
+                                    size,
+                                    write_back: false,
+                                    offset_positive: true,
+                                    pre_index: true,
+                                    data_register,
+                                    base_register: Register::R15,
+                                    offset: DataOperand::Constant(Expression::Sub(
+                                        Box::new(addr),
+                                        Box::new(Expression::Add(
+                                            Box::new(Expression::Label(here)),
+                                            Box::new(Expression::Constant(8)),
+                                        )),
+                                    )),
+                                }),
+                            ]))
+                        }
+                    }
+                    (
+                        Argument::Register(data_register),
+                        Argument::Address {
+                            base_register,
+                            operands,
+                            write_back,
+                        },
+                    ) => {
+                        // This is a pre-indexed addressing specification.
+                        if t_flag {
+                            Err(Rich::custom(
+                                span,
+                                "T flag not permitted with pre-indexed address",
+                            ))
+                        } else {
+                            let (offset_positive, offset) = match operands.len() {
+                                0 => (true, DataOperand::Constant(Expression::Constant(0))),
+                                1 => {
+                                    let [operand] = operands.try_into().unwrap();
+                                    match operand {
+                                        Argument::Expression(expr) => {
+                                            (true, DataOperand::Constant(expr))
+                                        }
+                                        Argument::Register(reg) => {
+                                            (true, DataOperand::Register(reg, Shift::default()))
+                                        }
+                                        Argument::SignedRegister(sign, reg) => {
+                                            (sign, DataOperand::Register(reg, Shift::default()))
+                                        }
+                                        _ => {
+                                            return Err(Rich::custom(
+                                                span,
+                                                "expected expression or register as offset",
+                                            ));
+                                        }
+                                    }
+                                }
+                                2 => {
+                                    let [register, shift] = operands.try_into().unwrap();
+                                    match (register, shift) {
+                                        (Argument::Register(reg), Argument::Shift(shift)) => {
+                                            (true, DataOperand::Register(reg, shift))
+                                        }
+                                        (
+                                            Argument::SignedRegister(sign, reg),
+                                            Argument::Shift(shift),
+                                        ) => (sign, DataOperand::Register(reg, shift)),
+                                        _ => {
+                                            return Err(Rich::custom(
+                                                span,
+                                                "expected register followed by a shift",
+                                            ));
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    return Err(Rich::custom(
+                                        span,
+                                        "too many operands inside addressing specification",
+                                    ));
+                                }
+                            };
+                            Ok(Processed::Instr(AsmInstr::SingleTransfer {
+                                kind,
+                                size,
+                                write_back,
+                                offset_positive,
+                                pre_index: true,
+                                data_register,
+                                base_register,
+                                offset,
+                            }))
+                        }
+                    }
+                    _ => Err(Rich::custom(
+                        span,
+                        "expected register then either an expression or address",
+                    )),
+                }
+            }
+            3 | 4 => {
+                // This is a post-indexed addressing specification.
+                let shift = if args.len() == 4 { args.pop() } else { None };
+                let [data_register, base_register, offset] = args.try_into().unwrap();
+                let (offset_positive, data_register) = match data_register {
+                    Argument::Register(data_register) => (true, data_register),
+                    Argument::SignedRegister(sign, data_register) => (sign, data_register),
+                    _ => return Err(Rich::custom(span, "expected register")),
+                };
+                let (data_register, base_register) = match base_register {
+                    Argument::Address {
+                        base_register,
+                        operands,
+                        write_back,
+                    } => {
+                        if !operands.is_empty() {
+                            return Err(Rich::custom(
+                                span,
+                                "additional address information can only come after ']'",
+                            ));
+                        }
+                        if write_back {
+                            let opcode_t = Opcode::SingleTransfer(kind, size, true);
+                            return Err(Rich::custom(
+                                span,
+                                format!(
+                                    "the write-back signifier '!' is not allowed, instead use the opcode {opcode_t}"
+                                ),
+                            ));
+                        }
+                        (data_register, base_register)
+                    }
+                    _ => {
+                        return Err(Rich::custom(
+                            span,
+                            "expected a register followed by an address then an offset",
+                        ));
+                    }
+                };
+                let offset = match offset {
+                    Argument::Expression(expression) => {
+                        if shift.is_some() {
+                            return Err(Rich::custom(
+                                span,
+                                "shift cannot be specified with expression offset",
+                            ));
+                        }
+                        DataOperand::Constant(expression)
+                    }
+                    Argument::Register(register) => match shift {
+                        Some(Argument::Shift(shift)) => DataOperand::Register(register, shift),
+                        None => DataOperand::Register(register, Shift::default()),
+                        _ => {
+                            return Err(Rich::custom(span, "invalid offset, expected shift"));
+                        }
+                    },
+                    _ => return Err(Rich::custom(span, "invalid offset")),
+                };
+                Ok(Processed::Instr(AsmInstr::SingleTransfer {
+                    kind,
+                    size,
+                    write_back: t_flag,
+                    offset_positive,
+                    pre_index: false,
+                    data_register,
+                    base_register,
+                    offset,
+                }))
+            }
+            _ => Err(Rich::custom(span, format!("syntax: {opcode} Rd,<address>"))),
+        },
         Opcode::BlockTransfer(transfer_kind, _, _) => todo!(),
         Opcode::Swap(_) => todo!(),
         Opcode::Swi => {
@@ -1084,14 +1376,14 @@ fn process_instruction<'tokens, 'src: 'tokens>(
             let exprs = args
                 .into_iter()
                 .map(|arg| match arg {
-                    Argument::Expression(expression) => Ok(expression),
+                    Argument::Expression(expression) => Ok(Processed::DefW(expression)),
                     _ => Err(Rich::custom(
                         span,
                         format!("syntax: {opcode} <expression>,...,<expression>"),
                     )),
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(Processed::DefW(exprs))
+            Ok(Processed::Vec(exprs))
         }
     }
 }

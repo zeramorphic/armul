@@ -1,6 +1,6 @@
 //! Assembles parsed assembly into real 32-bit instructions.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Mul};
 
 use crate::{
     assemble::{
@@ -222,7 +222,27 @@ fn assemble_instr(
             op1: *op1,
             op2: *op2,
         }]),
-        AsmInstr::SingleTransfer { .. } => todo!(),
+        AsmInstr::SingleTransfer {
+            kind,
+            size,
+            write_back,
+            offset_positive,
+            pre_index,
+            data_register,
+            base_register,
+            offset,
+        } => with_operand(line_number, output, heal, offset, |offset| {
+            Instr::SingleTransfer {
+                kind: *kind,
+                size: *size,
+                write_back: *write_back,
+                offset_positive: *offset_positive,
+                pre_index: *pre_index,
+                data_register: *data_register,
+                base_register: *base_register,
+                offset,
+            }
+        }),
         AsmInstr::BlockTransfer { .. } => todo!(),
         AsmInstr::Swap { .. } => todo!(),
         AsmInstr::SoftwareInterrupt { comment } => Ok(vec![Instr::SoftwareInterrupt {
@@ -267,6 +287,8 @@ fn with_operand(
 
 /// Return instructions that fill the given register with the prescribed value,
 /// using all healing strategies.
+///
+/// TODO: What if the register is R15?
 pub fn fill_register(value: u32, register: Register) -> Vec<Instr> {
     // Try a direct move strategy first as in encode_constant.
     if let Some(constant) = RotatedConstant::encode(value) {
@@ -293,7 +315,6 @@ pub fn fill_register(value: u32, register: Register) -> Vec<Instr> {
     // Slice off the lowest significant byte (or 7 bits if misaligned) and try again.
     let trailing_zeros = (value.trailing_zeros() / 2) * 2;
     let shift = trailing_zeros + 8;
-    println!("value {value} = {value:X} trailing {trailing_zeros}, shift {shift}");
     let mut instrs = fill_register(value >> shift << shift, register);
     // Now do `orr Rd, Rd, (extra)` to fill the remaining bits.
     instrs.push(Instr::Data {
@@ -350,27 +371,27 @@ impl Expression {
                     error: LineError::LabelNotFound(label.to_owned()),
                 }),
             },
-            Expression::Mul(lhs, rhs) => {
-                Ok(lhs.evaluate(line_number, output)? * rhs.evaluate(line_number, output)?)
-            }
-            Expression::Div(lhs, rhs) => {
-                Ok(lhs.evaluate(line_number, output)? / rhs.evaluate(line_number, output)?)
-            }
-            Expression::Add(lhs, rhs) => {
-                Ok(lhs.evaluate(line_number, output)? + rhs.evaluate(line_number, output)?)
-            }
-            Expression::Sub(lhs, rhs) => {
-                Ok(lhs.evaluate(line_number, output)? - rhs.evaluate(line_number, output)?)
-            }
+            Expression::Mul(lhs, rhs) => Ok(lhs
+                .evaluate(line_number, output)?
+                .wrapping_mul(rhs.evaluate(line_number, output)?)),
+            Expression::Div(lhs, rhs) => Ok(lhs
+                .evaluate(line_number, output)?
+                .wrapping_div(rhs.evaluate(line_number, output)?)),
+            Expression::Add(lhs, rhs) => Ok(lhs
+                .evaluate(line_number, output)?
+                .wrapping_add(rhs.evaluate(line_number, output)?)),
+            Expression::Sub(lhs, rhs) => Ok(lhs
+                .evaluate(line_number, output)?
+                .wrapping_sub(rhs.evaluate(line_number, output)?)),
             Expression::Or(lhs, rhs) => {
                 Ok(lhs.evaluate(line_number, output)? | rhs.evaluate(line_number, output)?)
             }
-            Expression::Lsl(lhs, rhs) => {
-                Ok(lhs.evaluate(line_number, output)? << rhs.evaluate(line_number, output)?)
-            }
-            Expression::Lsr(lhs, rhs) => {
-                Ok(lhs.evaluate(line_number, output)? >> rhs.evaluate(line_number, output)?)
-            }
+            Expression::Lsl(lhs, rhs) => Ok(lhs
+                .evaluate(line_number, output)?
+                .wrapping_shl(rhs.evaluate(line_number, output)?)),
+            Expression::Lsr(lhs, rhs) => Ok(lhs
+                .evaluate(line_number, output)?
+                .wrapping_shr(rhs.evaluate(line_number, output)?)),
             Expression::Asr(lhs, rhs) => Ok((lhs.evaluate(line_number, output)? as i32
                 >> rhs.evaluate(line_number, output)?)
                 as u32),
