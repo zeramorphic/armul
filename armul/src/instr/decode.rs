@@ -69,9 +69,9 @@ impl Instr {
                                 op1: Register::from_u4(instr, 0),
                                 op2: Register::from_u4(instr, 8),
                                 addend: if instr & (1 << 21) == 0 {
-                                    Some(Register::from_u4(instr, 12))
-                                } else {
                                     None
+                                } else {
+                                    Some(Register::from_u4(instr, 12))
                                 },
                             })
                         }

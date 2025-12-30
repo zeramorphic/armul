@@ -63,8 +63,37 @@ impl Instr {
                 };
                 Ok(signature | dest | source)
             }
-            Instr::Multiply { .. } => todo!(),
-            Instr::MultiplyLong { .. } => todo!(),
+            Instr::Multiply {
+                set_condition_codes,
+                dest,
+                op1,
+                op2,
+                addend,
+            } => Ok((if set_condition_codes { 1 << 20 } else { 0 })
+                | (dest as u32) << 16
+                | addend
+                    .map(|addend| (1 << 21) | (addend as u32) << 12)
+                    .unwrap_or(0)
+                | (op2 as u32) << 8
+                | 0b1001 << 4
+                | (op1 as u32)),
+            Instr::MultiplyLong {
+                set_condition_codes,
+                signed,
+                accumulate,
+                dest_hi,
+                dest_lo,
+                op1,
+                op2,
+            } => Ok(1 << 23
+                | (if signed { 1 << 22 } else { 0 })
+                | (if accumulate { 1 << 21 } else { 0 })
+                | (if set_condition_codes { 1 << 20 } else { 0 })
+                | (dest_hi as u32) << 16
+                | (dest_lo as u32) << 12
+                | (op2 as u32) << 8
+                | 0b1001 << 4
+                | (op1 as u32)),
             Instr::SingleTransfer { .. } => todo!(),
             Instr::BlockTransfer { .. } => todo!(),
             Instr::Swap { .. } => todo!(),

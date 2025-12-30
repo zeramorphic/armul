@@ -1,5 +1,12 @@
 ; Tests for multiply operations
 
+;! halts 100
+
+FLAG_N equ 1 lsl 31
+FLAG_Z equ 1 lsl 30
+FLAG_C equ 1 lsl 29
+FLAG_V equ 1 lsl 28
+
 t300
         ; ARM 5: Multiply
         mov     r0, 4

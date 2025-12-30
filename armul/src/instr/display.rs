@@ -76,14 +76,14 @@ impl Instr {
                     if *set_condition_codes {
                         write!(f, "S")?;
                     }
-                    write!(f, "{dest},{op1},{op2},{addend}")?;
+                    write!(f, " {dest},{op1},{op2},{addend}")?;
                 }
                 None => {
                     write!(f, "MUL{cond}")?;
                     if *set_condition_codes {
                         write!(f, "S")?;
                     }
-                    write!(f, "{dest},{op1},{op2}")?;
+                    write!(f, " {dest},{op1},{op2}")?;
                 }
             },
             Instr::MultiplyLong {
