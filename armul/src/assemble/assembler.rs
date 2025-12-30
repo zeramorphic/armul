@@ -322,6 +322,12 @@ impl Expression {
                     error: LineError::LabelNotFound(label.to_owned()),
                 }),
             },
+            Expression::Mul(lhs, rhs) => {
+                Ok(lhs.evaluate(line_number, output)? * rhs.evaluate(line_number, output)?)
+            }
+            Expression::Div(lhs, rhs) => {
+                Ok(lhs.evaluate(line_number, output)? / rhs.evaluate(line_number, output)?)
+            }
             Expression::Add(lhs, rhs) => {
                 Ok(lhs.evaluate(line_number, output)? + rhs.evaluate(line_number, output)?)
             }
@@ -337,6 +343,12 @@ impl Expression {
             Expression::Lsr(lhs, rhs) => {
                 Ok(lhs.evaluate(line_number, output)? >> rhs.evaluate(line_number, output)?)
             }
+            Expression::Asr(lhs, rhs) => Ok((lhs.evaluate(line_number, output)? as i32
+                >> rhs.evaluate(line_number, output)?)
+                as u32),
+            Expression::Ror(lhs, rhs) => Ok(lhs
+                .evaluate(line_number, output)?
+                .rotate_right(rhs.evaluate(line_number, output)?)),
         }
     }
 }

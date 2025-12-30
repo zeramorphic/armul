@@ -136,9 +136,13 @@ pub enum MsrSource {
 pub enum Expression {
     Constant(u32),
     Label(String),
+    Mul(Box<Expression>, Box<Expression>),
+    Div(Box<Expression>, Box<Expression>),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
     Lsl(Box<Expression>, Box<Expression>),
     Lsr(Box<Expression>, Box<Expression>),
+    Asr(Box<Expression>, Box<Expression>),
+    Ror(Box<Expression>, Box<Expression>),
 }

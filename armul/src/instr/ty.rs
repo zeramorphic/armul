@@ -107,7 +107,7 @@ impl FromStr for Cond {
             "LT" | "lt" => Ok(Cond::LT),
             "GT" | "gt" => Ok(Cond::GT),
             "LE" | "le" => Ok(Cond::LE),
-            "AL" | "" => Ok(Cond::AL),
+            "AL" | "al" | "" => Ok(Cond::AL),
             _ => Err(()),
         }
     }
@@ -519,4 +519,13 @@ impl Display for TransferSize {
 pub enum Psr {
     Cpsr,
     Spsr,
+}
+
+impl Display for Psr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Psr::Cpsr => write!(f, "CPSR"),
+            Psr::Spsr => write!(f, "SPSR"),
+        }
+    }
 }
