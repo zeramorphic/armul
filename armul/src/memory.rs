@@ -36,10 +36,12 @@ impl Memory {
     /// Access the word at a word-aligned (4-byte aligned) address.
     pub fn get_word_aligned(&self, addr: u32) -> u32 {
         let (a, b, c, _) = to_indices(addr);
-        self.root[a]
+        let result = self.root[a]
             .as_ref()
             .and_then(|dir| dir[b].as_ref().map(|table| table[c]))
-            .unwrap_or(self.default_word)
+            .unwrap_or(self.default_word);
+        println!("(mem) accessed {addr:0>8X} = {result:0>8X}");
+        result
     }
 
     pub fn get_words_aligned(&self, addr: u32, result: &mut [u32]) {
@@ -53,6 +55,7 @@ impl Memory {
     }
 
     pub fn set_word_aligned(&mut self, addr: u32, value: u32) {
+        println!("(mem) set {addr:0>8X} := {value:0>8X}");
         let (a, b, c, _) = to_indices(addr);
         self.root[a].get_or_insert_default()[b].get_or_insert_default()[c] = value;
     }

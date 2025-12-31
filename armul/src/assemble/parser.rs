@@ -69,7 +69,7 @@ pub fn parse(src: &str) -> Result<Vec<AsmLine>, Vec<AssemblerError>> {
 enum Token<'a> {
     Error(LexError),
 
-    #[regex(r"[a-zA-Z][a-zA-Z0-9\-_]*")]
+    #[regex(r"[a-zA-Z][a-zA-Z0-9_]*")]
     Name(&'a str),
 
     Register(Register),
@@ -109,12 +109,18 @@ enum Token<'a> {
     LSquare,
     #[token("]")]
     RSquare,
+    #[token("{")]
+    LBrace,
+    #[token("}")]
+    RBrace,
     #[token(",")]
     Comma,
     #[token("#")]
     Hash,
     #[token("!")]
     Exclamation,
+    #[token("^")]
+    Caret,
 
     #[regex(r"[ \t\f]+")]
     Whitespace,
@@ -238,14 +244,14 @@ impl<'a> Token<'a> {
                 ("ldm", "ib", Opcode::BlockTransfer(TransferKind::Load, true, true)),
                 ("ldm", "da", Opcode::BlockTransfer(TransferKind::Load, false, false)),
                 ("ldm", "db", Opcode::BlockTransfer(TransferKind::Load, false, true)),
-                ("stm", "fd", Opcode::BlockTransfer(TransferKind::Store, true, false)),
-                ("stm", "ed", Opcode::BlockTransfer(TransferKind::Store, true, true)),
-                ("stm", "fa", Opcode::BlockTransfer(TransferKind::Store, false, false)),
-                ("stm", "ea", Opcode::BlockTransfer(TransferKind::Store, false, true)),
-                ("stm", "ia", Opcode::BlockTransfer(TransferKind::Store, true, false)),
-                ("stm", "ib", Opcode::BlockTransfer(TransferKind::Store, true, true)),
-                ("stm", "da", Opcode::BlockTransfer(TransferKind::Store, false, false)),
-                ("stm", "db", Opcode::BlockTransfer(TransferKind::Store, false, true)),
+                ("stm", "ea", Opcode::BlockTransfer(TransferKind::Store, true, false)),
+                ("stm", "fa", Opcode::BlockTransfer(TransferKind::Store, true, true)),
+                ("stm", "ed", Opcode::BlockTransfer(TransferKind::Store, false, false)),
+                ("stm", "fd", Opcode::BlockTransfer(TransferKind::Store, false, true)),
+                ("stm", "db", Opcode::BlockTransfer(TransferKind::Store, true, false)),
+                ("stm", "da", Opcode::BlockTransfer(TransferKind::Store, true, true)),
+                ("stm", "ib", Opcode::BlockTransfer(TransferKind::Store, false, false)),
+                ("stm", "ia", Opcode::BlockTransfer(TransferKind::Store, false, true)),
                 ("swp", "", Opcode::Swap(false)),
                 ("swp", "b", Opcode::Swap(true)),
                 ("swi", "", Opcode::Swi),
@@ -472,9 +478,12 @@ impl<'a> Display for Token<'a> {
             Token::RParen => write!(f, ")"),
             Token::LSquare => write!(f, "["),
             Token::RSquare => write!(f, "]"),
+            Token::LBrace => write!(f, "{{"),
+            Token::RBrace => write!(f, "}}"),
             Token::Comma => write!(f, ","),
             Token::Hash => write!(f, "#"),
             Token::Exclamation => write!(f, "!"),
+            Token::Caret => write!(f, "^"),
             Token::Whitespace => write!(f, "whitespace"),
             Token::Newline => write!(f, "newline"),
             Token::Comment(_) => write!(f, "comment"),
@@ -630,6 +639,8 @@ enum Argument {
     Register(Register),
     /// The bool is whether the sign was positive.
     SignedRegister(bool, Register),
+    /// A register followed by `!`.
+    WriteBackRegister(Register),
     Psr {
         psr: Psr,
         flag: bool,
@@ -642,6 +653,11 @@ enum Argument {
         operands: Vec<Argument>,
         write_back: bool,
     },
+    /// `{R0,R2-R5,...}{^}`
+    RegisterSet {
+        registers: Vec<Register>,
+        caret: bool,
+    },
 }
 
 fn argument<'tokens, 'src: 'tokens, I>()
@@ -651,7 +667,15 @@ where
 {
     recursive(|arg| {
         choice((
-            register().map(Argument::Register),
+            register()
+                .then(just(Token::Exclamation).or_not())
+                .map(|(register, token)| {
+                    if token.is_some() {
+                        Argument::WriteBackRegister(register)
+                    } else {
+                        Argument::Register(register)
+                    }
+                }),
             custom(|inp| {
                 let checkpoint = inp.save();
                 let sign = match inp.next() {
@@ -691,6 +715,32 @@ where
                     base_register: base,
                     operands: operands.unwrap_or_default(),
                     write_back,
+                }),
+            just(Token::LBrace)
+                .ignore_then(
+                    register()
+                        .then(just(Token::Sub).ignore_then(register()).or_not())
+                        .try_map(|(first, second), span| match second {
+                            Some(second) => {
+                                if first <= second {
+                                    Ok((first as u32..=second as u32)
+                                        .map(|x| Register::from_u4(x, 0))
+                                        .collect())
+                                } else {
+                                    Err(Rich::custom(span, "register range contains no registers"))
+                                }
+                            }
+                            None => Ok(vec![first]),
+                        })
+                        .padded_by(whitespace())
+                        .separated_by(just(Token::Comma))
+                        .collect::<Vec<_>>(),
+                )
+                .then_ignore(just(Token::RBrace))
+                .then(just(Token::Caret).or_not())
+                .map(|(rs, caret)| Argument::RegisterSet {
+                    registers: rs.into_iter().flatten().collect(),
+                    caret: caret.is_some(),
                 }),
         ))
     })
@@ -1355,11 +1405,40 @@ fn process_instruction<'tokens, 'src: 'tokens>(
             }
             _ => Err(Rich::custom(span, format!("syntax: {opcode} Rd,<address>"))),
         },
-        Opcode::BlockTransfer(transfer_kind, _, _) => todo!(),
+        Opcode::BlockTransfer(kind, offset_positive, pre_index) => {
+            let [dest, registers] = args
+                .try_into()
+                .map_err(|_| Rich::custom(span, "expected 2 arguments"))?;
+            let (dest, write_back, registers, caret) = match (dest, registers) {
+                (Argument::Register(dest), Argument::RegisterSet { registers, caret }) => {
+                    (dest, false, registers, caret)
+                }
+                (Argument::WriteBackRegister(dest), Argument::RegisterSet { registers, caret }) => {
+                    (dest, true, registers, caret)
+                }
+                _ => {
+                    return Err(Rich::custom(
+                        span,
+                        format!("syntax: {opcode} Rn{{!}},<registers>{{^}}"),
+                    ));
+                }
+            };
+            // TODO: Check that the list of registers is increasing, is nonempty,
+            // and contains no duplicates.
+            Ok(Processed::Instr(AsmInstr::BlockTransfer {
+                kind,
+                write_back,
+                offset_positive,
+                pre_index,
+                psr: caret,
+                base_register: dest,
+                registers: registers.into_iter().fold(0, |acc, r| acc | 1 << r as u32),
+            }))
+        }
         Opcode::Swap(byte) => {
             let [dest, source, base] = args
                 .try_into()
-                .map_err(|_| Rich::custom(span, "expected 1 argument"))?;
+                .map_err(|_| Rich::custom(span, "expected 3 arguments"))?;
             match (dest, source, base) {
                 (
                     Argument::Register(dest),

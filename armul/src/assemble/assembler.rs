@@ -314,7 +314,23 @@ fn assemble_instr(
             });
             Ok(instrs)
         }
-        AsmInstr::BlockTransfer { .. } => todo!(),
+        AsmInstr::BlockTransfer {
+            kind,
+            write_back,
+            offset_positive,
+            pre_index,
+            psr,
+            base_register,
+            registers,
+        } => Ok(vec![Instr::BlockTransfer {
+            kind: *kind,
+            write_back: *write_back,
+            offset_positive: *offset_positive,
+            pre_index: *pre_index,
+            psr: *psr,
+            base_register: *base_register,
+            registers: *registers,
+        }]),
         AsmInstr::Swap {
             byte,
             dest,

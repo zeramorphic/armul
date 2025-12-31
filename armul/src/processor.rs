@@ -155,7 +155,25 @@ impl Processor {
                 offset,
                 listener,
             ),
-            Instr::BlockTransfer { .. } => todo!(),
+            Instr::BlockTransfer {
+                kind,
+                write_back,
+                offset_positive,
+                pre_index,
+                psr,
+                base_register,
+                registers,
+            } => self.execute_block_transfer(
+                pc,
+                kind,
+                write_back,
+                offset_positive,
+                pre_index,
+                psr,
+                base_register,
+                registers,
+                listener,
+            ),
             Instr::Swap {
                 byte,
                 dest,
@@ -806,6 +824,99 @@ impl Processor {
         if kind == TransferKind::Store && write_back {
             let base = self.registers.get_mut(base_register);
             *base = base.wrapping_add_signed(offset);
+        }
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    fn execute_block_transfer(
+        &mut self,
+        pc: u32,
+        kind: TransferKind,
+        write_back: bool,
+        offset_positive: bool,
+        pre_index: bool,
+        psr: bool,
+        base_register: Register,
+        registers: u16,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        match kind {
+            TransferKind::Store => {
+                listener.cycle(Cycle::Seq, registers.count_ones() as usize - 1, pc);
+                listener.cycle(Cycle::NonSeq, 2, pc);
+            }
+            TransferKind::Load => {
+                listener.cycle(
+                    Cycle::Seq,
+                    registers.count_ones() as usize
+                        + if registers & (1 << 15) == 0 { 0 } else { 1 },
+                    pc,
+                );
+                listener.cycle(
+                    Cycle::NonSeq,
+                    1 + if registers & (1 << 15) == 0 { 0 } else { 1 },
+                    pc,
+                );
+                listener.cycle(Cycle::Internal, 1, pc);
+            }
+        }
+
+        let mut address = self.registers.get(base_register);
+        let final_address = if offset_positive {
+            address.wrapping_add(4 * registers.count_ones())
+        } else {
+            address.wrapping_sub(4 * registers.count_ones())
+        };
+        if !offset_positive {
+            address = final_address;
+        };
+        // Auto-align the address.
+        address = address >> 2 << 2;
+
+        println!("Block transfer: {kind:?} pos={offset_positive} pre={pre_index}");
+
+        let mut written_back = !write_back
+            // LDMs always overwrite the updated base if it is in the list.
+            || (kind == TransferKind::Load && registers & (1 << base_register as u32) != 0);
+        for register in 0..16 {
+            if registers & (1 << register) == 0 {
+                continue;
+            }
+            let register = Register::from_u4(register, 0);
+
+            if pre_index == offset_positive {
+                address = address.wrapping_add(4);
+            }
+
+            println!("Address is {address:0>8X}, register {register}");
+
+            match kind {
+                TransferKind::Store => {
+                    self.memory
+                        .set_word_aligned(address, self.registers.get(register));
+                }
+                TransferKind::Load => {
+                    self.registers
+                        .set(register, self.memory.get_word_aligned(address));
+                }
+            }
+
+            if pre_index != offset_positive {
+                address = address.wrapping_add(4);
+            }
+
+            // Writebacks occur at the end of the second cycle of the instruction.
+            if !written_back {
+                written_back = true;
+                self.registers.set(base_register, final_address);
+            }
+        }
+
+        if !written_back {
+            self.registers.set(base_register, final_address);
         }
 
         Ok(())

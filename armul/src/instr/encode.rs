@@ -146,7 +146,26 @@ impl Instr {
                     TransferSizeSpecial::SignExtendedHalfWord => 0b1111_0000,
                 })
                 | Instr::encode_special_operand(offset)),
-            Instr::BlockTransfer { .. } => todo!(),
+            Instr::BlockTransfer {
+                kind,
+                write_back,
+                offset_positive,
+                pre_index,
+                psr,
+                base_register,
+                registers,
+            } => Ok(1 << 27
+                | (if pre_index { 1 << 24 } else { 0 })
+                | (if offset_positive { 1 << 23 } else { 0 })
+                | (if psr { 1 << 22 } else { 0 })
+                | (if write_back { 1 << 21 } else { 0 })
+                | (if kind == TransferKind::Load {
+                    1 << 20
+                } else {
+                    0
+                })
+                | (base_register as u32) << 16
+                | registers as u32),
             Instr::Swap {
                 byte,
                 dest,
