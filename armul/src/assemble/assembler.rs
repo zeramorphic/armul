@@ -315,7 +315,17 @@ fn assemble_instr(
             Ok(instrs)
         }
         AsmInstr::BlockTransfer { .. } => todo!(),
-        AsmInstr::Swap { .. } => todo!(),
+        AsmInstr::Swap {
+            byte,
+            dest,
+            source,
+            base,
+        } => Ok(vec![Instr::Swap {
+            byte: *byte,
+            dest: *dest,
+            source: *source,
+            base: *base,
+        }]),
         AsmInstr::SoftwareInterrupt { comment } => Ok(vec![Instr::SoftwareInterrupt {
             comment: comment.evaluate(line_number, output)?,
         }]),

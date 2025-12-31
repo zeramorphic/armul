@@ -147,7 +147,17 @@ impl Instr {
                 })
                 | Instr::encode_special_operand(offset)),
             Instr::BlockTransfer { .. } => todo!(),
-            Instr::Swap { .. } => todo!(),
+            Instr::Swap {
+                byte,
+                dest,
+                source,
+                base,
+            } => Ok(1 << 24
+                | (if byte { 1 << 22 } else { 0 })
+                | (base as u32) << 16
+                | (dest as u32) << 12
+                | 0b1001 << 4
+                | source as u32),
             Instr::SoftwareInterrupt { comment } => Ok(0b1111 << 24 | comment & 0x00FFFFFF),
         }
     }

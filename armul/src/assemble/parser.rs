@@ -1356,7 +1356,28 @@ fn process_instruction<'tokens, 'src: 'tokens>(
             _ => Err(Rich::custom(span, format!("syntax: {opcode} Rd,<address>"))),
         },
         Opcode::BlockTransfer(transfer_kind, _, _) => todo!(),
-        Opcode::Swap(_) => todo!(),
+        Opcode::Swap(byte) => {
+            let [dest, source, base] = args
+                .try_into()
+                .map_err(|_| Rich::custom(span, "expected 1 argument"))?;
+            match (dest, source, base) {
+                (
+                    Argument::Register(dest),
+                    Argument::Register(source),
+                    Argument::Address {
+                        base_register: base,
+                        operands,
+                        write_back: false,
+                    },
+                ) if operands.is_empty() => Ok(Processed::Instr(AsmInstr::Swap {
+                    byte,
+                    dest,
+                    source,
+                    base,
+                })),
+                _ => Err(Rich::custom(span, format!("syntax: {opcode} Rd,Rm,[Rn]"))),
+            }
+        }
         Opcode::Swi => {
             let [comment] = args
                 .try_into()

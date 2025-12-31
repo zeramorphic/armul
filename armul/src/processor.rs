@@ -156,7 +156,12 @@ impl Processor {
                 listener,
             ),
             Instr::BlockTransfer { .. } => todo!(),
-            Instr::Swap { .. } => todo!(),
+            Instr::Swap {
+                byte,
+                dest,
+                source,
+                base,
+            } => self.execute_swap(pc, byte, dest, source, base, listener),
             Instr::SoftwareInterrupt { comment } => match comment {
                 2 => {
                     // Halt the processor.
@@ -801,6 +806,51 @@ impl Processor {
         if kind == TransferKind::Store && write_back {
             let base = self.registers.get_mut(base_register);
             *base = base.wrapping_add_signed(offset);
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    fn execute_swap(
+        &mut self,
+        pc: u32,
+        byte: bool,
+        dest: Register,
+        source: Register,
+        base: Register,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        listener.cycle(Cycle::Seq, 1, pc);
+        listener.cycle(Cycle::NonSeq, 2, pc);
+        listener.cycle(Cycle::Internal, 1, pc);
+
+        if [dest, source, base].contains(&Register::R15) {
+            return Err(ProcessorError::InvalidUseOfPc);
+        }
+
+        let addr = self.registers.get(base);
+        match byte {
+            true => {
+                let b = self.memory.get_byte(addr);
+                self.memory.set_byte(addr, self.registers.get(source) as u8);
+                self.registers.set(dest, b as u32);
+            }
+            false => {
+                let value = self.memory.get_word_aligned(addr >> 2 << 2);
+                // Rotate it to match the desired offset from word alignment.
+                let value = match addr & 0b11 {
+                    0 => value,
+                    1 => value.rotate_right(8),
+                    2 => value.rotate_right(16),
+                    3 => value.rotate_left(8),
+                    _ => unreachable!(),
+                };
+                // Auto-align the address.
+                self.memory
+                    .set_word_aligned(addr >> 2 << 2, self.registers.get(source));
+                self.registers.set(dest, value);
+            }
         }
 
         Ok(())
