@@ -1,6 +1,10 @@
 //! Abstract syntax for ARM assembly.
 
-use crate::instr::{Cond, DataOp, Psr, Register, ShiftType, TransferKind, TransferSize};
+use std::fmt::Display;
+
+use crate::instr::{
+    Cond, DataOp, Psr, Register, ShiftType, TransferKind, TransferSize, TransferSizeSpecial,
+};
 
 #[derive(Debug)]
 pub struct AsmLine {
@@ -67,7 +71,7 @@ pub enum AsmInstr {
     },
     SingleTransfer {
         kind: TransferKind,
-        size: TransferSize,
+        size: AnyTransferSize,
         write_back: bool,
         offset_positive: bool,
         pre_index: bool,
@@ -99,6 +103,21 @@ pub enum AsmInstr {
 pub enum DataOperand {
     Constant(Expression),
     Register(Register, Shift),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnyTransferSize {
+    Normal(TransferSize),
+    Special(TransferSizeSpecial),
+}
+
+impl Display for AnyTransferSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnyTransferSize::Normal(transfer_size) => write!(f, "{transfer_size}"),
+            AnyTransferSize::Special(transfer_size_special) => write!(f, "{transfer_size_special}"),
+        }
+    }
 }
 
 #[derive(Debug)]

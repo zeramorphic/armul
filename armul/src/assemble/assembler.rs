@@ -5,9 +5,12 @@ use std::{collections::BTreeMap, ops::Mul};
 use crate::{
     assemble::{
         AssemblerError, AssemblerOutput, LineError,
-        syntax::{self, AsmInstr, AsmLine, AsmLineContents, Expression},
+        syntax::{self, AnyTransferSize, AsmInstr, AsmLine, AsmLineContents, Expression},
     },
-    instr::{self, DataOp, Instr, Register, RotatedConstant, Shift},
+    instr::{
+        self, DataOp, Instr, Register, RotatedConstant, Shift, SpecialOperand, TransferKind,
+        TransferSizeSpecial,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +110,7 @@ fn single_pass(
             }
             AsmLineContents::DefWord(expression) => {
                 let value = expression.evaluate(line.line_number, output)?;
+                program_counter += 4;
                 output.instrs.push(value);
             }
         }
@@ -224,14 +228,14 @@ fn assemble_instr(
         }]),
         AsmInstr::SingleTransfer {
             kind,
-            size,
+            size: AnyTransferSize::Normal(size),
             write_back,
             offset_positive,
             pre_index,
             data_register,
             base_register,
             offset,
-        } => with_operand(line_number, output, heal, offset, |offset| {
+        } => with_transfer_operand(line_number, output, heal, offset, |offset| {
             Instr::SingleTransfer {
                 kind: *kind,
                 size: *size,
@@ -243,6 +247,73 @@ fn assemble_instr(
                 offset,
             }
         }),
+        AsmInstr::SingleTransfer {
+            kind,
+            size: AnyTransferSize::Special(size),
+            write_back,
+            offset_positive,
+            pre_index,
+            data_register,
+            base_register,
+            offset,
+        } => {
+            if *kind == TransferKind::Store && *size != TransferSizeSpecial::HalfWord {
+                return Err(AssemblerError {
+                    line_number,
+                    error: LineError::InvalidStoreSize,
+                });
+            }
+            let mut instrs = Vec::new();
+            let offset = match offset {
+                syntax::DataOperand::Constant(expression) => {
+                    let value = expression.evaluate(line_number, output)?;
+                    if value <= 0xFF {
+                        SpecialOperand::Constant(value as u8)
+                        // TODO: What about negative offsets?
+                    } else if let HealStrategy::Advanced(register) = heal {
+                        instrs.extend(fill_register(value, register));
+                        SpecialOperand::Register(register)
+                    } else {
+                        return Err(AssemblerError {
+                            line_number,
+                            error: LineError::AddressTooComplex,
+                        });
+                    }
+                }
+                syntax::DataOperand::Register(register, shift) => {
+                    let shift_amount = match &shift.shift_amount {
+                        syntax::ShiftAmount::Constant(expression) => {
+                            expression.evaluate(line_number, output)?
+                        }
+                        syntax::ShiftAmount::Register(_) => {
+                            return Err(AssemblerError {
+                                line_number,
+                                error: LineError::AddressTooComplex,
+                            });
+                        }
+                    };
+                    if shift_amount == 0 {
+                        SpecialOperand::Register(*register)
+                    } else {
+                        return Err(AssemblerError {
+                            line_number,
+                            error: LineError::AddressTooComplex,
+                        });
+                    }
+                }
+            };
+            instrs.push(Instr::SingleTransferSpecial {
+                kind: *kind,
+                size: *size,
+                write_back: *write_back,
+                offset_positive: *offset_positive,
+                pre_index: *pre_index,
+                data_register: *data_register,
+                base_register: *base_register,
+                offset,
+            });
+            Ok(instrs)
+        }
         AsmInstr::BlockTransfer { .. } => todo!(),
         AsmInstr::Swap { .. } => todo!(),
         AsmInstr::SoftwareInterrupt { comment } => Ok(vec![Instr::SoftwareInterrupt {
@@ -285,10 +356,59 @@ fn with_operand(
     }
 }
 
+fn with_transfer_operand(
+    line_number: usize,
+    output: &AssemblerOutput,
+    heal: HealStrategy,
+    op: &syntax::DataOperand,
+    instr: impl FnOnce(instr::TransferOperand) -> Instr,
+) -> Result<Vec<Instr>, AssemblerError> {
+    match op {
+        syntax::DataOperand::Constant(expression) => {
+            let value = expression.evaluate(line_number, output)?;
+            if value < 1 << 12 {
+                Ok(vec![instr(instr::TransferOperand::Constant(value as u16))])
+            } else if let HealStrategy::Advanced(register) = heal {
+                let mut instrs = fill_register(value, register);
+                instrs.push(instr(instr::TransferOperand::Register(
+                    register,
+                    Shift {
+                        shift_type: instr::ShiftType::LogicalLeft,
+                        shift_amount: instr::ShiftAmount::Constant(0),
+                    },
+                )));
+                Ok(instrs)
+            } else {
+                Err(AssemblerError {
+                    line_number,
+                    error: LineError::ImmediateOutOfRange(value),
+                })
+            }
+        }
+        syntax::DataOperand::Register(register, shift) => {
+            Ok(vec![instr(instr::TransferOperand::Register(
+                *register,
+                Shift {
+                    shift_type: shift.shift_type,
+                    shift_amount: match &shift.shift_amount {
+                        syntax::ShiftAmount::Constant(expression) => instr::ShiftAmount::Constant(
+                            expression.evaluate(line_number, output)? as u8,
+                        ),
+                        syntax::ShiftAmount::Register(register) => {
+                            instr::ShiftAmount::Register(*register)
+                        }
+                    },
+                },
+            ))])
+        }
+    }
+}
+
 /// Return instructions that fill the given register with the prescribed value,
 /// using all healing strategies.
 ///
 /// TODO: What if the register is R15?
+#[must_use]
 pub fn fill_register(value: u32, register: Register) -> Vec<Instr> {
     // Try a direct move strategy first as in encode_constant.
     if let Some(constant) = RotatedConstant::encode(value) {

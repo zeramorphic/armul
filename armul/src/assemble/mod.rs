@@ -37,6 +37,8 @@ pub enum LineError {
     ImmediateOutOfRange(u32),
     InvalidShiftType,
     InvalidPsr,
+    InvalidStoreSize,
+    AddressTooComplex,
     TooManyPasses,
 }
 

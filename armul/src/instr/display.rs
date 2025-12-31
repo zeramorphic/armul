@@ -1,4 +1,10 @@
-use crate::instr::{Cond, DataOp, DataOperand, Instr, MsrSource, Psr, TransferKind};
+use std::fmt::Display;
+
+use crate::instr::{
+    Cond, DataOp, DataOperand, Instr, MsrSource, Psr, TransferKind, TransferOperand,
+};
+
+use super::SpecialOperand;
 
 impl Instr {
     pub fn write(&self, cond: Cond, f: &mut impl std::fmt::Write) -> std::fmt::Result {
@@ -121,45 +127,71 @@ impl Instr {
                 base_register,
                 offset,
             } => {
-                match kind {
-                    TransferKind::Store => {
-                        write!(f, "STR")?;
-                    }
-                    TransferKind::Load => {
-                        write!(f, "LDR")?;
-                    }
-                }
-                write!(f, "{cond}{size}")?;
-                if *write_back && !*pre_index {
-                    write!(f, "T")?;
-                }
-                write!(f, " {data_register},[{base_register}")?;
-                if !*pre_index {
-                    write!(f, "]")?;
-                }
-                match offset {
-                    DataOperand::Constant(i) if i.value().0 == 0 => {}
-                    DataOperand::Constant(i) => {
-                        write!(f, ",#")?;
-                        if !*offset_positive {
-                            write!(f, "-")?;
+                write_single_transfer(
+                    cond,
+                    f,
+                    kind,
+                    size,
+                    write_back,
+                    pre_index,
+                    data_register,
+                    base_register,
+                    match offset {
+                        TransferOperand::Constant(0) => "".to_owned(),
+                        TransferOperand::Constant(i) => {
+                            if *offset_positive {
+                                format!(",#{i}")
+                            } else {
+                                format!(",#-{i}")
+                            }
                         }
-                        write!(f, "{i}")?;
-                    }
-                    DataOperand::Register(register, shift) => {
-                        write!(f, ",")?;
-                        if !*offset_positive {
-                            write!(f, "-")?;
+                        TransferOperand::Register(register, shift) => {
+                            if *offset_positive {
+                                format!(",{register}{shift}")
+                            } else {
+                                format!(",-{register}{shift}")
+                            }
                         }
-                        write!(f, "{register}{shift}")?;
-                    }
-                }
-                if *pre_index {
-                    write!(f, "]")?;
-                    if *write_back {
-                        write!(f, "!")?;
-                    }
-                }
+                    },
+                )?;
+            }
+            Instr::SingleTransferSpecial {
+                kind,
+                size,
+                write_back,
+                offset_positive,
+                pre_index,
+                data_register,
+                base_register,
+                offset,
+            } => {
+                write_single_transfer(
+                    cond,
+                    f,
+                    kind,
+                    size,
+                    write_back,
+                    pre_index,
+                    data_register,
+                    base_register,
+                    match offset {
+                        SpecialOperand::Constant(0) => "".to_owned(),
+                        SpecialOperand::Constant(i) => {
+                            if *offset_positive {
+                                format!(",#{i}")
+                            } else {
+                                format!(",#-{i}")
+                            }
+                        }
+                        SpecialOperand::Register(register) => {
+                            if *offset_positive {
+                                format!(",{register}")
+                            } else {
+                                format!(",-{register}")
+                            }
+                        }
+                    },
+                )?;
             }
             Instr::BlockTransfer {
                 kind,
@@ -229,4 +261,43 @@ impl Instr {
         self.write(cond, &mut w).unwrap();
         w
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+#[inline]
+fn write_single_transfer(
+    cond: Cond,
+    f: &mut impl std::fmt::Write,
+    kind: &TransferKind,
+    size: &impl Display,
+    write_back: &bool,
+    pre_index: &bool,
+    data_register: &super::Register,
+    base_register: &super::Register,
+    offset: String,
+) -> Result<(), std::fmt::Error> {
+    match kind {
+        TransferKind::Store => {
+            write!(f, "STR")?;
+        }
+        TransferKind::Load => {
+            write!(f, "LDR")?;
+        }
+    }
+    write!(f, "{cond}{size}")?;
+    if *write_back && !*pre_index {
+        write!(f, "T")?;
+    }
+    write!(f, " {data_register},[{base_register}")?;
+    if !*pre_index {
+        write!(f, "]")?;
+    }
+    write!(f, "{offset}")?;
+    if *pre_index {
+        write!(f, "]")?;
+        if *write_back {
+            write!(f, "!")?;
+        }
+    };
+    Ok(())
 }

@@ -1,7 +1,10 @@
 //! A model of the ARM7TDMI processor.
 
 use crate::{
-    instr::{DataOp, DataOperand, Instr, MsrSource, Psr, Register, Shift, ShiftAmount, ShiftType},
+    instr::{
+        DataOp, DataOperand, Instr, MsrSource, Psr, Register, Shift, ShiftAmount, ShiftType,
+        TransferKind, TransferOperand, TransferSize,
+    },
     memory::Memory,
     mode::Mode,
     registers::Registers,
@@ -110,7 +113,28 @@ impl Processor {
                 op2,
                 listener,
             ),
-            Instr::SingleTransfer { .. } => todo!(),
+            Instr::SingleTransfer {
+                kind,
+                size,
+                write_back,
+                offset_positive,
+                pre_index,
+                data_register,
+                base_register,
+                offset,
+            } => self.execute_single_transfer(
+                pc,
+                kind,
+                size,
+                write_back,
+                offset_positive,
+                pre_index,
+                data_register,
+                base_register,
+                offset,
+                listener,
+            ),
+            Instr::SingleTransferSpecial { .. } => todo!(),
             Instr::BlockTransfer { .. } => todo!(),
             Instr::Swap { .. } => todo!(),
             Instr::SoftwareInterrupt { comment } => match comment {
@@ -137,7 +161,7 @@ impl Processor {
             // We don't emulate THUMB instructions.
             return Err(ProcessorError::UnalignedPc);
         }
-        *self.registers.get_mut(Register::R15) = new_pc;
+        self.registers.set(Register::R15, new_pc);
         listener.pipeline_flush(pc);
         Ok(())
     }
@@ -153,8 +177,10 @@ impl Processor {
         listener.cycle(Cycle::Seq, 1, pc);
         if link {
             // Write the address of the next instruction into R14 (LR).
-            *self.registers.get_mut(Register::R14) =
-                self.registers.get(Register::R15).wrapping_add(4);
+            self.registers.set(
+                Register::R14,
+                self.registers.get(Register::R15).wrapping_add(4),
+            );
         }
         let pc_reg = self.registers.get_mut(Register::R15);
         // Only add 4 bytes instead of the actual PC offset (8 bytes)
@@ -337,9 +363,11 @@ impl Processor {
     ) -> ProcessorResult {
         listener.cycle(Cycle::Seq, 1, pc);
         let mode = self.registers.mode().unwrap_or(Mode::Usr);
-        *self.registers.get_mut(target) = self
-            .registers
-            .get_physical(psr.physical(mode).ok_or(ProcessorError::NoSpsr)?);
+        self.registers.set(
+            target,
+            self.registers
+                .get_physical(psr.physical(mode).ok_or(ProcessorError::NoSpsr)?),
+        );
         Ok(())
     }
 
@@ -430,7 +458,7 @@ impl Processor {
             self.registers.set_zero(result == 0);
         }
 
-        *self.registers.get_mut(dest) = result;
+        self.registers.set(dest, result);
 
         Ok(())
     }
@@ -502,8 +530,123 @@ impl Processor {
             self.registers.set_zero(result == 0);
         }
 
-        *self.registers.get_mut(dest_hi) = (result >> 32) as u32;
-        *self.registers.get_mut(dest_lo) = result as u32;
+        self.registers.set(dest_hi, (result >> 32) as u32);
+        self.registers.set(dest_lo, result as u32);
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    fn execute_single_transfer(
+        &mut self,
+        pc: u32,
+        kind: TransferKind,
+        size: TransferSize,
+        mut write_back: bool,
+        offset_positive: bool,
+        pre_index: bool,
+        data_register: Register,
+        base_register: Register,
+        offset: TransferOperand,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        match kind {
+            TransferKind::Store => {
+                listener.cycle(Cycle::NonSeq, 2, pc);
+            }
+            TransferKind::Load if data_register == Register::R15 => {
+                listener.cycle(Cycle::Seq, 2, pc);
+                listener.cycle(Cycle::NonSeq, 2, pc);
+                listener.cycle(Cycle::Internal, 1, pc);
+            }
+            TransferKind::Load => {
+                listener.cycle(Cycle::Seq, 1, pc);
+                listener.cycle(Cycle::NonSeq, 1, pc);
+                listener.cycle(Cycle::Internal, 1, pc);
+            }
+        }
+
+        if !pre_index {
+            write_back = true;
+        }
+
+        match offset {
+            TransferOperand::Constant(_) => {}
+            TransferOperand::Register(register, shift) => {
+                if register == Register::R15 {
+                    return Err(ProcessorError::InvalidUseOfPc);
+                }
+                match shift.shift_amount {
+                    ShiftAmount::Constant(_) => {}
+                    _ => return Err(ProcessorError::AddressTooComplex),
+                }
+            }
+        }
+
+        // The barrel shifter carry out is not used.
+        // R15 cannot be used here so we set the PC offset to 0.
+        let offset = self.evaluate_transfer_operand(offset, 0)?;
+        let offset = if offset_positive {
+            offset as i32
+        } else {
+            -(offset as i32)
+        };
+
+        if write_back && base_register == Register::R15 {
+            return Err(ProcessorError::InvalidUseOfPc);
+        }
+
+        // We emulate a little-endian architecture.
+        let address = self
+            .registers
+            .get_pc_offset(base_register, 8)
+            .wrapping_add_signed(if pre_index { offset } else { 0 });
+        println!("{kind:?} at {address:0>8X}");
+        match (kind, size) {
+            (TransferKind::Store, TransferSize::Byte) => {
+                self.memory.set_byte(
+                    address,
+                    self.registers.get_pc_offset(data_register, 12) as u8,
+                );
+            }
+            (TransferKind::Store, TransferSize::Word) => {
+                // Auto-align the address.
+                self.memory.set_word_aligned(
+                    address >> 2 << 2,
+                    self.registers.get_pc_offset(data_register, 12),
+                );
+            }
+            (TransferKind::Load, TransferSize::Byte) => {
+                let mut value = self.memory.get_byte(address) as u32;
+                if data_register == Register::R15 {
+                    // Pre-decrement by 4 to compensate for auto-increment.
+                    value = value.wrapping_sub(4);
+                }
+                self.registers.set(data_register, value);
+            }
+            (TransferKind::Load, TransferSize::Word) => {
+                let value = self.memory.get_word_aligned(address >> 2 << 2);
+                // Rotate it to match the desired offset from word alignment.
+                let mut value = match address & 0b11 {
+                    0 => value,
+                    1 => value.rotate_right(8),
+                    2 => value.rotate_right(16),
+                    3 => value.rotate_left(8),
+                    _ => unreachable!(),
+                };
+                if data_register == Register::R15 {
+                    // Pre-decrement by 4.
+                    value = value.wrapping_sub(4);
+                }
+                self.registers.set(data_register, value);
+            }
+        }
+
+        if write_back {
+            let base = self.registers.get_mut(base_register);
+            *base = base.wrapping_add_signed(offset);
+        }
 
         Ok(())
     }
@@ -527,6 +670,23 @@ impl Processor {
                 shift,
                 pc_offset,
             ),
+        }
+    }
+
+    fn evaluate_transfer_operand(
+        &self,
+        operand: TransferOperand,
+        pc_offset: u32,
+    ) -> Result<u32, ProcessorError> {
+        match operand {
+            TransferOperand::Constant(c) => Ok(c as u32),
+            TransferOperand::Register(register, shift) => self
+                .apply_shift(
+                    self.registers.get_pc_offset(register, pc_offset),
+                    shift,
+                    pc_offset,
+                )
+                .map(|x| x.0),
         }
     }
 
@@ -633,11 +793,15 @@ pub enum ProcessorError {
     UnalignedPc,
     /// The instruction at the program counter could not be decoded.
     UnrecognisedInstruction,
+    /// The program counter was used in an invalid place in an instruction.
+    InvalidUseOfPc,
     /// The program counter register (PC, or R15) was used in a register
     /// specified shift amount.
     PcUsedInShift,
     /// The SPSR was accessed, but one was not present in the current mode.
     NoSpsr,
+    /// The given addressing specification was too complex to execute in this instruction.
+    AddressTooComplex,
     /// An invalid software interrupt was issued.
     InvalidSwi,
 }

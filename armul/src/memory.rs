@@ -6,11 +6,11 @@ use std::{
 };
 
 /// Virtualises a full 32-bit address space using pages.
-/// The default value at every address is zero.
-/// It doesn't try to reclaim memory that's reset to all-zeroes.
-#[derive(Default)]
+/// It doesn't try to reclaim memory that's reset to the default value.
+/// We emulate a little-endian architecture.
 pub struct Memory {
     root: PageRoot,
+    default_word: u32,
 }
 
 impl Debug for Memory {
@@ -19,15 +19,18 @@ impl Debug for Memory {
     }
 }
 
+impl Default for Memory {
+    fn default() -> Self {
+        Self::new(0xAAAAAAAA)
+    }
+}
+
 impl Memory {
-    pub fn new(data: &[u32]) -> Self {
-        let mut result = Memory {
-            root: PageRoot::default(),
-        };
-        for (i, item) in data.iter().enumerate() {
-            result.set_word_aligned(i as u32 * 4, *item);
+    pub fn new(default_word: u32) -> Self {
+        Memory {
+            root: Default::default(),
+            default_word,
         }
-        result
     }
 
     /// Access the word at a word-aligned (4-byte aligned) address.
@@ -36,13 +39,17 @@ impl Memory {
         self.root[a]
             .as_ref()
             .and_then(|dir| dir[b].as_ref().map(|table| table[c]))
-            .unwrap_or_default()
+            .unwrap_or(self.default_word)
     }
 
     pub fn get_words_aligned(&self, addr: u32, result: &mut [u32]) {
         for (offset, value) in result.iter_mut().enumerate() {
             *value = self.get_word_aligned(addr.wrapping_add(4 * offset as u32))
         }
+    }
+
+    pub fn get_byte(&self, addr: u32) -> u8 {
+        self.get_word_aligned(addr >> 2 << 2).to_le_bytes()[addr as usize % 4]
     }
 
     pub fn set_word_aligned(&mut self, addr: u32, value: u32) {
@@ -54,6 +61,14 @@ impl Memory {
         for (offset, value) in values.iter().enumerate() {
             self.set_word_aligned(addr.wrapping_add(4 * offset as u32), *value);
         }
+    }
+
+    pub fn set_byte(&mut self, addr: u32, value: u8) {
+        let (a, b, c, d) = to_indices(addr);
+        let location = &mut self.root[a].get_or_insert_default()[b].get_or_insert_default()[c];
+        let mut bytes = location.to_le_bytes();
+        bytes[d as usize] = value;
+        *location = u32::from_le_bytes(bytes)
     }
 
     /// Return the number of pages in use to represent the memory of this processor.
@@ -105,6 +120,7 @@ impl<T> IndexMut<U10> for Page<T> {
 }
 
 /// Converts an address to its page indices, together with a final offset (either 0, 1, 2, or 3).
+#[inline]
 fn to_indices(addr: u32) -> (U10, U10, U10, u32) {
     (
         U10((addr >> 22) as u16),

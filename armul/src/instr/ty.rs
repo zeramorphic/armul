@@ -216,7 +216,6 @@ pub enum Instr {
     /// Single Data Transfer (LDR, STR).
     SingleTransfer {
         kind: TransferKind,
-        /// Sign-extended transfers are only valid in loads.
         size: TransferSize,
         /// If this is true, the computed address is
         /// written back into the base register.
@@ -233,9 +232,33 @@ pub enum Instr {
         /// The offset to use for this instruction.
         /// Some of these are unrepresentable.
         /// The valid operands are:
-        /// - an unsigned 12-bit constant;
+        /// - a 12-bit unsigned constant;
         /// - a shifted register not using a register-specified shift amount.
-        offset: DataOperand,
+        offset: TransferOperand,
+    },
+    /// Single Data Transfer Special (LDRH, LDRSB, LDRSH, STRH).
+    SingleTransferSpecial {
+        kind: TransferKind,
+        /// Sign-extended transfers are only valid in loads.
+        size: TransferSizeSpecial,
+        /// If this is true, the computed address is
+        /// written back into the base register.
+        write_back: bool,
+        /// If this is true, the offset is considered to be positive.
+        /// Otherwise, it is considered to be negative.
+        offset_positive: bool,
+        /// If this is true, the offset is added before the transfer.
+        pre_index: bool,
+        /// The register to read from or write to (depending on the transfer kind).
+        data_register: Register,
+        /// The base register to use for computing the memory location to use.
+        base_register: Register,
+        /// The offset to use for this instruction.
+        /// Some of these are unrepresentable.
+        /// The valid operands are:
+        /// - an unsigned 8-bit constant;
+        /// - a register.
+        offset: SpecialOperand,
     },
     /// Block Data Transfer (LDM, STM).
     BlockTransfer {
@@ -363,6 +386,43 @@ impl DataOperand {
                 },
             )
         )
+    }
+}
+
+/// The last operand used in a single transfer instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransferOperand {
+    /// The operand is a constant 12-bit value.
+    Constant(u16),
+    /// The operand is contained in a register.
+    /// Register-specified shifts are not allowed.
+    Register(Register, Shift),
+}
+
+impl Display for TransferOperand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransferOperand::Constant(i) => write!(f, "#{i}"),
+            TransferOperand::Register(register, shift) => write!(f, "{register}{shift}"),
+        }
+    }
+}
+
+/// The last operand used in a special single transfer instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialOperand {
+    /// The operand is a constant 8-bit value.
+    Constant(u8),
+    /// The operand is contained in a register.
+    Register(Register),
+}
+
+impl Display for SpecialOperand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpecialOperand::Constant(i) => write!(f, "#{i}"),
+            SpecialOperand::Register(register) => write!(f, "{register}"),
+        }
     }
 }
 
@@ -497,9 +557,6 @@ pub enum TransferKind {
 pub enum TransferSize {
     Byte,
     Word,
-    HalfWord,
-    SignExtendedByte,
-    SignExtendedHalfWord,
 }
 
 impl Display for TransferSize {
@@ -507,9 +564,24 @@ impl Display for TransferSize {
         match self {
             TransferSize::Byte => write!(f, "B"),
             TransferSize::Word => Ok(()),
-            TransferSize::HalfWord => write!(f, "H"),
-            TransferSize::SignExtendedByte => write!(f, "SB"),
-            TransferSize::SignExtendedHalfWord => write!(f, "SH"),
+        }
+    }
+}
+
+/// How much data is to be transferred by a transfer instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TransferSizeSpecial {
+    HalfWord,
+    SignExtendedByte,
+    SignExtendedHalfWord,
+}
+
+impl Display for TransferSizeSpecial {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransferSizeSpecial::HalfWord => write!(f, "H"),
+            TransferSizeSpecial::SignExtendedByte => write!(f, "SB"),
+            TransferSizeSpecial::SignExtendedHalfWord => write!(f, "SH"),
         }
     }
 }

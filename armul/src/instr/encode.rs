@@ -1,8 +1,8 @@
 use crate::{
     assemble::LineError,
     instr::{
-        Cond, DataOperand, Instr, MsrSource, Psr, RotatedConstant, Shift, ShiftType, TransferKind,
-        TransferSize,
+        Cond, DataOperand, Instr, MsrSource, Psr, RotatedConstant, Shift, ShiftType,
+        SpecialOperand, TransferKind, TransferOperand, TransferSize, TransferSizeSpecial,
     },
 };
 
@@ -99,7 +99,7 @@ impl Instr {
                 | (op1 as u32)),
             Instr::SingleTransfer {
                 kind,
-                size: size @ (TransferSize::Byte | TransferSize::Word),
+                size,
                 write_back,
                 offset_positive,
                 pre_index,
@@ -114,15 +114,15 @@ impl Instr {
                 } else {
                     0
                 })
-                | (if write_back { 1 << 21 } else { 0 })
+                | (if write_back && pre_index { 1 << 21 } else { 0 })
                 | (match kind {
                     TransferKind::Store => 0,
                     TransferKind::Load => 1 << 20,
                 })
                 | (base_register as u32) << 16
                 | (data_register as u32) << 12
-                | Instr::encode_data_operand(offset)?),
-            Instr::SingleTransfer {
+                | Instr::encode_transfer_operand(offset)?),
+            Instr::SingleTransferSpecial {
                 kind,
                 size,
                 write_back,
@@ -133,7 +133,7 @@ impl Instr {
                 offset,
             } => Ok((if pre_index { 1 << 24 } else { 0 })
                 | (if offset_positive { 1 << 23 } else { 0 })
-                | (if write_back { 1 << 21 } else { 0 })
+                | (if write_back && pre_index { 1 << 21 } else { 0 })
                 | (match kind {
                     TransferKind::Store => 0,
                     TransferKind::Load => 1 << 20,
@@ -141,12 +141,11 @@ impl Instr {
                 | (base_register as u32) << 16
                 | (data_register as u32) << 12
                 | (match size {
-                    TransferSize::HalfWord => 0b1011_0000,
-                    TransferSize::SignExtendedByte => 0b1101_0000,
-                    TransferSize::SignExtendedHalfWord => 0b1111_0000,
-                    _ => unreachable!(),
+                    TransferSizeSpecial::HalfWord => 0b1011_0000,
+                    TransferSizeSpecial::SignExtendedByte => 0b1101_0000,
+                    TransferSizeSpecial::SignExtendedHalfWord => 0b1111_0000,
                 })
-                | (todo!() as u32)),
+                | Instr::encode_special_operand(offset)),
             Instr::BlockTransfer { .. } => todo!(),
             Instr::Swap { .. } => todo!(),
             Instr::SoftwareInterrupt { comment } => Ok(0b1111 << 24 | comment & 0x00FFFFFF),
@@ -160,6 +159,32 @@ impl Instr {
             DataOperand::Register(register, shift) => {
                 Ok(register as u32 | Instr::encode_shift(shift)?)
             }
+        }
+    }
+
+    /// Encodes a transfer operand in bits 25 and 11..0.
+    fn encode_transfer_operand(operand: TransferOperand) -> Result<u32, LineError> {
+        match operand {
+            TransferOperand::Constant(value) => {
+                if value < 1 << 12 {
+                    Ok(value as u32)
+                } else {
+                    Err(LineError::ImmediateOutOfRange(value as u32))
+                }
+            }
+            TransferOperand::Register(register, shift) => {
+                Ok(1 << 25 | register as u32 | Instr::encode_shift(shift)?)
+            }
+        }
+    }
+
+    /// Encodes a special operand in bits 22, 11..8, 3..0.
+    fn encode_special_operand(operand: SpecialOperand) -> u32 {
+        match operand {
+            SpecialOperand::Constant(value) => {
+                1 << 22 | ((value >> 4) as u32) << 8 | (value & 0xF) as u32
+            }
+            SpecialOperand::Register(register) => register as u32,
         }
     }
 

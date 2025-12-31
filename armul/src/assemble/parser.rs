@@ -17,11 +17,13 @@ use crate::{
     assemble::{
         AssemblerError, LineError,
         syntax::{
-            AsmInstr, AsmLine, AsmLineContents, DataOperand, Expression, MsrSource, Shift,
-            ShiftAmount,
+            AnyTransferSize, AsmInstr, AsmLine, AsmLineContents, DataOperand, Expression,
+            MsrSource, Shift, ShiftAmount,
         },
     },
-    instr::{Cond, DataOp, Psr, Register, ShiftType, TransferKind, TransferSize},
+    instr::{
+        Cond, DataOp, Psr, Register, ShiftType, TransferKind, TransferSize, TransferSizeSpecial,
+    },
 };
 
 pub fn parse(src: &str) -> Result<Vec<AsmLine>, Vec<AssemblerError>> {
@@ -120,7 +122,7 @@ enum Token<'a> {
     #[regex("\n")]
     Newline,
 
-    #[regex(r";[^\n]+", allow_greedy = true)]
+    #[regex(r";[^\n]*", allow_greedy = true)]
     Comment(&'a str),
 }
 
@@ -214,20 +216,20 @@ impl<'a> Token<'a> {
                 ("smull", "s", Opcode::MulLong(true, true, false)),
                 ("smlal", "", Opcode::MulLong(false, true, true)),
                 ("smlal", "s", Opcode::MulLong(true, true, true)),
-                ("ldr", "", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Word, false)),
-                ("ldr", "b", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Byte, false)),
-                ("ldr", "t", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Word, true)),
-                ("ldr", "bt", Opcode::SingleTransfer(TransferKind::Load, TransferSize::Byte, true)),
-                ("ldr", "h", Opcode::SingleTransfer(TransferKind::Load, TransferSize::HalfWord, false)),
-                ("ldr", "sh", Opcode::SingleTransfer(TransferKind::Load, TransferSize::SignExtendedHalfWord, false)),
-                ("ldr", "sb", Opcode::SingleTransfer(TransferKind::Load, TransferSize::SignExtendedByte, false)),
-                ("str", "", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Word, false)),
-                ("str", "b", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Byte, false)),
-                ("str", "t", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Word, true)),
-                ("str", "bt", Opcode::SingleTransfer(TransferKind::Store, TransferSize::Byte, true)),
-                ("str", "h", Opcode::SingleTransfer(TransferKind::Store, TransferSize::HalfWord, false)),
-                ("str", "sh", Opcode::SingleTransfer(TransferKind::Store, TransferSize::SignExtendedHalfWord, false)),
-                ("str", "sb", Opcode::SingleTransfer(TransferKind::Store, TransferSize::SignExtendedByte, false)),
+                ("ldr", "", Opcode::SingleTransfer(TransferKind::Load, AnyTransferSize::Normal(TransferSize::Word), false)),
+                ("ldr", "b", Opcode::SingleTransfer(TransferKind::Load, AnyTransferSize::Normal(TransferSize::Byte), false)),
+                ("ldr", "t", Opcode::SingleTransfer(TransferKind::Load, AnyTransferSize::Normal(TransferSize::Word), true)),
+                ("ldr", "bt", Opcode::SingleTransfer(TransferKind::Load, AnyTransferSize::Normal(TransferSize::Byte), true)),
+                ("ldr", "h", Opcode::SingleTransfer(TransferKind::Load, AnyTransferSize::Special(TransferSizeSpecial::HalfWord), false)),
+                ("ldr", "sh", Opcode::SingleTransfer(TransferKind::Load, AnyTransferSize::Special(TransferSizeSpecial::SignExtendedHalfWord), false)),
+                ("ldr", "sb", Opcode::SingleTransfer(TransferKind::Load, AnyTransferSize::Special(TransferSizeSpecial::SignExtendedByte), false)),
+                ("str", "", Opcode::SingleTransfer(TransferKind::Store, AnyTransferSize::Normal(TransferSize::Word), false)),
+                ("str", "b", Opcode::SingleTransfer(TransferKind::Store, AnyTransferSize::Normal(TransferSize::Byte), false)),
+                ("str", "t", Opcode::SingleTransfer(TransferKind::Store, AnyTransferSize::Normal(TransferSize::Word), true)),
+                ("str", "bt", Opcode::SingleTransfer(TransferKind::Store, AnyTransferSize::Normal(TransferSize::Byte), true)),
+                ("str", "h", Opcode::SingleTransfer(TransferKind::Store, AnyTransferSize::Special(TransferSizeSpecial::HalfWord), false)),
+                ("str", "sh", Opcode::SingleTransfer(TransferKind::Store, AnyTransferSize::Special(TransferSizeSpecial::SignExtendedHalfWord), false)),
+                ("str", "sb", Opcode::SingleTransfer(TransferKind::Store, AnyTransferSize::Special(TransferSizeSpecial::SignExtendedByte), false)),
                 ("ldm", "fd", Opcode::BlockTransfer(TransferKind::Load, true, false)),
                 ("ldm", "ed", Opcode::BlockTransfer(TransferKind::Load, true, true)),
                 ("ldm", "fa", Opcode::BlockTransfer(TransferKind::Load, false, false)),
@@ -306,7 +308,7 @@ enum Opcode {
     /// Set condition codes; signed; accumulate.
     MulLong(bool, bool, bool),
     /// The bool is for forced writeback (the T flag).
-    SingleTransfer(TransferKind, TransferSize, bool),
+    SingleTransfer(TransferKind, AnyTransferSize, bool),
     /// The bool flags are positive offset and pre index.
     BlockTransfer(TransferKind, bool, bool),
     /// The bool is whether to swap a byte.
@@ -1177,9 +1179,11 @@ fn process_instruction<'tokens, 'src: 'tokens>(
                         } else {
                             // Work out an offset to the given address,
                             // or rather, make the assembler do the calculation shortly.
+                            // Because we might generate extra healing instructions between
+                            // the start and the end of execution, we put the label *after*
+                            // the PC location it's referencing.
                             let here = generate_label(generator);
                             Ok(Processed::Vec(vec![
-                                Processed::Label(here.clone()),
                                 Processed::Instr(AsmInstr::SingleTransfer {
                                     kind,
                                     size,
@@ -1191,11 +1195,12 @@ fn process_instruction<'tokens, 'src: 'tokens>(
                                     offset: DataOperand::Constant(Expression::Sub(
                                         Box::new(addr),
                                         Box::new(Expression::Add(
-                                            Box::new(Expression::Label(here)),
-                                            Box::new(Expression::Constant(8)),
+                                            Box::new(Expression::Label(here.clone())),
+                                            Box::new(Expression::Constant(4)),
                                         )),
                                     )),
                                 }),
+                                Processed::Label(here),
                             ]))
                         }
                     }

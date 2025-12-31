@@ -114,11 +114,18 @@ f356
 
 t357
         ; ARM 7: Load into PC
-        adr     r0, t358
+        adr     r0, ok
         str     r0, [r11]
         ldr     pc, [r11], 32
 
 f357
+        swi     357
+        swi     357
+        swi     357
+ok
+        b       t358
+        swi     357
+        swi     357
         swi     357
 
 t358

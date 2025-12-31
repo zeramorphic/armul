@@ -202,6 +202,12 @@ impl Registers {
         self.get_physical_mut(register.physical(self.mode().unwrap_or(Mode::Usr)))
     }
 
+    /// Using the current mode of the processor, mutably borrow the given
+    /// virtual register. In case of ill-defined mode, we default to the user mode.
+    pub fn set(&mut self, register: Register, value: u32) {
+        *self.get_mut(register) = value;
+    }
+
     /// Return the current program status register.
     pub fn cpsr(&self) -> u32 {
         self.get_physical(PhysicalRegister::Cpsr)

@@ -2,7 +2,8 @@ use num_traits::FromPrimitive;
 
 use crate::instr::{
     Cond, DataOp, DataOperand, Instr, MsrSource, Psr, Register, RotatedConstant, Shift,
-    ShiftAmount, ShiftType, TransferKind, TransferSize,
+    ShiftAmount, ShiftType, SpecialOperand, TransferKind, TransferOperand, TransferSize,
+    TransferSizeSpecial,
 };
 
 impl Instr {
@@ -76,33 +77,33 @@ impl Instr {
                             })
                         }
                     } else {
-                        // This is halfword data transfer.
+                        // This is special data transfer.
                         // Note that SH can never be 00.
-                        Some(Instr::SingleTransfer {
+                        Some(Instr::SingleTransferSpecial {
                             kind: if instr & (1 << 20) == 0 {
                                 TransferKind::Store
                             } else {
                                 TransferKind::Load
                             },
                             size: if instr & (1 << 6) == 0 {
-                                TransferSize::HalfWord
+                                TransferSizeSpecial::HalfWord
                             } else if instr & (1 << 5) == 0 {
-                                TransferSize::SignExtendedByte
+                                TransferSizeSpecial::SignExtendedByte
                             } else {
-                                TransferSize::SignExtendedHalfWord
+                                TransferSizeSpecial::SignExtendedHalfWord
                             },
                             write_back: instr & (1 << 21) != 0,
                             offset_positive: instr & (1 << 23) != 0,
                             pre_index: instr & (1 << 24) != 0,
                             data_register: Register::from_u4(instr, 12),
                             base_register: Register::from_u4(instr, 16),
-                            offset: DataOperand::Register(
-                                Register::from_u4(instr, 0),
-                                Shift {
-                                    shift_type: ShiftType::LogicalLeft,
-                                    shift_amount: ShiftAmount::Constant(0),
-                                },
-                            ),
+                            offset: if instr & (1 << 22) == 0 {
+                                SpecialOperand::Register(Register::from_u4(instr, 0))
+                            } else {
+                                SpecialOperand::Constant(
+                                    (((instr >> 4) & 0xF0) | instr & 0xF) as u8,
+                                )
+                            },
                         })
                     }
                 } else {
@@ -160,7 +161,8 @@ impl Instr {
                         // This is a data instruction.
                         let op2 = if instr & (1 << 25) == 0 {
                             // Shifted register operand.
-                            Instr::decode_shifted_register(instr)
+                            let (register, shift) = Instr::decode_shifted_register(instr);
+                            DataOperand::Register(register, shift)
                         } else {
                             // Immediate operand.
                             DataOperand::Constant(RotatedConstant {
@@ -180,6 +182,14 @@ impl Instr {
             }
             0b010 | 0b011 => {
                 // This is a word/byte single data transfer instruction.
+                let offset = if instr & (1 << 25) == 0 {
+                    // Immediate operand.
+                    TransferOperand::Constant((instr & ((1 << 12) - 1)) as u16)
+                } else {
+                    // Shifted register operand.
+                    let (register, shift) = Instr::decode_shifted_register(instr);
+                    TransferOperand::Register(register, shift)
+                };
                 Some(Instr::SingleTransfer {
                     kind: if instr & (1 << 20) == 0 {
                         TransferKind::Store
@@ -196,7 +206,7 @@ impl Instr {
                     pre_index: instr & (1 << 24) != 0,
                     data_register: Register::from_u4(instr, 12),
                     base_register: Register::from_u4(instr, 16),
-                    offset: todo!(),
+                    offset,
                 })
             }
             0b100 => {
@@ -242,7 +252,7 @@ impl Instr {
     }
 
     /// Decode the shift register data in bits 11..0.
-    fn decode_shifted_register(instr: u32) -> DataOperand {
+    fn decode_shifted_register(instr: u32) -> (Register, Shift) {
         let register = Register::from_u4(instr, 0);
         let mut shift_type = ShiftType::from_u32((instr >> 5) & 0b11).unwrap();
         if instr & (1 << 4) == 0 {
@@ -255,7 +265,7 @@ impl Instr {
                     _ => {}
                 }
             }
-            DataOperand::Register(
+            (
                 register,
                 Shift {
                     shift_type,
@@ -266,7 +276,7 @@ impl Instr {
             // Shift by a register.
             // Bit 7 is unset.
             let shift_by = Register::from_u4(instr, 8);
-            DataOperand::Register(
+            (
                 register,
                 Shift {
                     shift_type,
