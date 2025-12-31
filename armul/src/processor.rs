@@ -603,6 +603,12 @@ impl Processor {
             .get_pc_offset(base_register, 8)
             .wrapping_add_signed(if pre_index { offset } else { 0 });
         println!("{kind:?} at {address:0>8X}");
+
+        if kind == TransferKind::Load && write_back {
+            let base = self.registers.get_mut(base_register);
+            *base = base.wrapping_add_signed(offset);
+        }
+
         match (kind, size) {
             (TransferKind::Store, TransferSize::Byte) => {
                 self.memory.set_byte(
@@ -643,7 +649,7 @@ impl Processor {
             }
         }
 
-        if write_back {
+        if kind == TransferKind::Store && write_back {
             let base = self.registers.get_mut(base_register);
             *base = base.wrapping_add_signed(offset);
         }

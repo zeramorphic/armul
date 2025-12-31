@@ -223,3 +223,4 @@ f363
         swi     363
 
 single_transfer_passed
+        swi     2
