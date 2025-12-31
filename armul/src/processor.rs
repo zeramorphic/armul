@@ -3,7 +3,7 @@
 use crate::{
     instr::{
         DataOp, DataOperand, Instr, MsrSource, Psr, Register, Shift, ShiftAmount, ShiftType,
-        TransferKind, TransferOperand, TransferSize,
+        SpecialOperand, TransferKind, TransferOperand, TransferSize, TransferSizeSpecial,
     },
     memory::Memory,
     mode::Mode,
@@ -134,7 +134,27 @@ impl Processor {
                 offset,
                 listener,
             ),
-            Instr::SingleTransferSpecial { .. } => todo!(),
+            Instr::SingleTransferSpecial {
+                kind,
+                size,
+                write_back,
+                offset_positive,
+                pre_index,
+                data_register,
+                base_register,
+                offset,
+            } => self.execute_single_transfer_special(
+                pc,
+                kind,
+                size,
+                write_back,
+                offset_positive,
+                pre_index,
+                data_register,
+                base_register,
+                offset,
+                listener,
+            ),
             Instr::BlockTransfer { .. } => todo!(),
             Instr::Swap { .. } => todo!(),
             Instr::SoftwareInterrupt { comment } => match comment {
@@ -602,7 +622,6 @@ impl Processor {
             .registers
             .get_pc_offset(base_register, 8)
             .wrapping_add_signed(if pre_index { offset } else { 0 });
-        println!("{kind:?} at {address:0>8X}");
 
         if kind == TransferKind::Load && write_back {
             let base = self.registers.get_mut(base_register);
@@ -646,6 +665,136 @@ impl Processor {
                     value = value.wrapping_sub(4);
                 }
                 self.registers.set(data_register, value);
+            }
+        }
+
+        if kind == TransferKind::Store && write_back {
+            let base = self.registers.get_mut(base_register);
+            *base = base.wrapping_add_signed(offset);
+        }
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[inline]
+    fn execute_single_transfer_special(
+        &mut self,
+        pc: u32,
+        kind: TransferKind,
+        size: TransferSizeSpecial,
+        mut write_back: bool,
+        offset_positive: bool,
+        pre_index: bool,
+        data_register: Register,
+        base_register: Register,
+        offset: SpecialOperand,
+        listener: &mut impl ProcessorListener,
+    ) -> ProcessorResult {
+        match kind {
+            TransferKind::Store => {
+                listener.cycle(Cycle::NonSeq, 2, pc);
+            }
+            TransferKind::Load if data_register == Register::R15 => {
+                listener.cycle(Cycle::Seq, 2, pc);
+                listener.cycle(Cycle::NonSeq, 2, pc);
+                listener.cycle(Cycle::Internal, 1, pc);
+            }
+            TransferKind::Load => {
+                listener.cycle(Cycle::Seq, 1, pc);
+                listener.cycle(Cycle::NonSeq, 1, pc);
+                listener.cycle(Cycle::Internal, 1, pc);
+            }
+        }
+
+        if !pre_index {
+            write_back = true;
+        }
+
+        if let SpecialOperand::Register(register) = offset
+            && register == Register::R15
+        {
+            return Err(ProcessorError::InvalidUseOfPc);
+        }
+
+        let offset = match offset {
+            SpecialOperand::Constant(offset) => offset as u32,
+            SpecialOperand::Register(register) => self.registers.get(register),
+        };
+        let offset = if offset_positive {
+            offset as i32
+        } else {
+            -(offset as i32)
+        };
+
+        if write_back && base_register == Register::R15 {
+            return Err(ProcessorError::InvalidUseOfPc);
+        }
+
+        // We emulate a little-endian architecture.
+        let address = self
+            .registers
+            .get_pc_offset(base_register, 8)
+            .wrapping_add_signed(if pre_index { offset } else { 0 });
+
+        if kind == TransferKind::Load && write_back {
+            let base = self.registers.get_mut(base_register);
+            *base = base.wrapping_add_signed(offset);
+        }
+
+        match (kind, size) {
+            (TransferKind::Store, TransferSizeSpecial::HalfWord) => {
+                if address & 0b1 != 0 {
+                    return Err(ProcessorError::UnalignedTransfer);
+                }
+                let original_value = self.memory.get_word_aligned(address >> 2 << 2);
+                let operand = self.registers.get_pc_offset(data_register, 12);
+                let new_value = if address & 0b10 == 0 {
+                    // This is word-aligned. Set the least significant two bytes.
+                    original_value & 0xFFFF0000 | operand & 0x0000FFFF
+                } else {
+                    // This is not word-aligned. Set the most significant two bytes.
+                    original_value & 0x0000FFFF | operand << 16
+                };
+                self.memory.set_word_aligned(address >> 2 << 2, new_value);
+            }
+            (TransferKind::Store, TransferSizeSpecial::SignExtendedByte) => todo!(),
+            (TransferKind::Store, TransferSizeSpecial::SignExtendedHalfWord) => todo!(),
+            (TransferKind::Load, TransferSizeSpecial::HalfWord) => {
+                if address & 0b1 != 0 {
+                    return Err(ProcessorError::UnalignedTransfer);
+                }
+                let value = self.memory.get_word_aligned(address >> 2 << 2);
+                self.registers.set(
+                    data_register,
+                    if address & 0b10 == 0 {
+                        // This is word-aligned. Load the least significant two bytes.
+                        value as u16 as u32
+                    } else {
+                        // This is not word-aligned. Load the most significant two bytes.
+                        value >> 16
+                    },
+                );
+            }
+            (TransferKind::Load, TransferSizeSpecial::SignExtendedByte) => {
+                self.registers.set(
+                    data_register,
+                    self.memory.get_byte(address) as i8 as i32 as u32,
+                );
+            }
+            (TransferKind::Load, TransferSizeSpecial::SignExtendedHalfWord) => {
+                if address & 0b1 != 0 {
+                    return Err(ProcessorError::UnalignedTransfer);
+                }
+                let value = self.memory.get_word_aligned(address >> 2 << 2);
+                self.registers.set(
+                    data_register,
+                    if address & 0b10 == 0 {
+                        value as u16 as i16 as i32 as u32
+                    } else {
+                        (value as i32 >> 16) as u32
+                    },
+                );
             }
         }
 
@@ -797,6 +946,8 @@ pub type ProcessorResult = Result<(), ProcessorError>;
 pub enum ProcessorError {
     /// The program counter was not 4-byte aligned.
     UnalignedPc,
+    /// The address used for transfer was not aligned.
+    UnalignedTransfer,
     /// The instruction at the program counter could not be decoded.
     UnrecognisedInstruction,
     /// The program counter was used in an invalid place in an instruction.
