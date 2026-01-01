@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::instr::{
-    Cond, DataOp, DataOperand, Instr, MsrSource, Psr, TransferKind, TransferOperand,
+    Cond, DataOp, Instr, MsrSource, Psr, TransferKind, TransferOperand,
 };
 
 use super::SpecialOperand;

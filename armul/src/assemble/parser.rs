@@ -885,11 +885,7 @@ fn process_instruction<'tokens, 'src: 'tokens>(
                 .map_err(|_| Rich::custom(span, "expected 2 arguments"))?;
             match (dest, expr) {
                 (Argument::Register(dest), Argument::Expression(expr)) => {
-                    Ok(Processed::Instr(AsmInstr::Adr {
-                        long: false,
-                        dest,
-                        expr,
-                    }))
+                    Ok(Processed::Instr(AsmInstr::Adr { dest, expr }))
                 }
                 _ => Err(Rich::custom(
                     span,

@@ -34,7 +34,6 @@ pub enum AsmInstr {
         target: Expression,
     },
     Adr {
-        long: bool,
         dest: Register,
         expr: Expression,
     },

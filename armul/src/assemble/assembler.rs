@@ -1,6 +1,6 @@
 //! Assembles parsed assembly into real 32-bit instructions.
 
-use std::{collections::BTreeMap, ops::Mul};
+use std::collections::BTreeMap;
 
 use crate::{
     assemble::{
@@ -150,11 +150,7 @@ fn assemble_instr(
                 offset,
             }])
         }
-        AsmInstr::Adr {
-            long: _,
-            dest,
-            expr,
-        } => assemble_instr(
+        AsmInstr::Adr { dest, expr } => assemble_instr(
             line_number,
             heal,
             program_counter,

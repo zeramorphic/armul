@@ -781,8 +781,12 @@ impl Processor {
                 };
                 self.memory.set_word_aligned(address >> 2 << 2, new_value);
             }
-            (TransferKind::Store, TransferSizeSpecial::SignExtendedByte) => todo!(),
-            (TransferKind::Store, TransferSizeSpecial::SignExtendedHalfWord) => todo!(),
+            (TransferKind::Store, TransferSizeSpecial::SignExtendedByte) => {
+                return Err(ProcessorError::InvalidTransfer);
+            }
+            (TransferKind::Store, TransferSizeSpecial::SignExtendedHalfWord) => {
+                return Err(ProcessorError::InvalidTransfer);
+            }
             (TransferKind::Load, TransferSizeSpecial::HalfWord) => {
                 if address & 0b1 != 0 {
                     return Err(ProcessorError::UnalignedTransfer);
@@ -1138,6 +1142,8 @@ pub enum ProcessorError {
     UnalignedPc,
     /// The address used for transfer was not aligned.
     UnalignedTransfer,
+    /// This transfer type was not supported.
+    InvalidTransfer,
     /// The instruction at the program counter could not be decoded.
     UnrecognisedInstruction,
     /// The program counter was used in an invalid place in an instruction.
