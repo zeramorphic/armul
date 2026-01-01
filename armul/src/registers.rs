@@ -179,10 +179,23 @@ impl Registers {
         &mut self.regs[register as usize]
     }
 
+    pub fn set_physical(&mut self, register: PhysicalRegister, value: u32) {
+        *self.get_physical_mut(register) = value;
+    }
+
     /// Using the current mode of the processor, obtain the value of the given
     /// virtual register. In case of ill-defined mode, we default to the user mode.
     pub fn get(&self, register: Register) -> u32 {
         self.get_physical(register.physical(self.mode().unwrap_or(Mode::Usr)))
+    }
+
+    pub fn get_physical_pc_offset(&self, register: PhysicalRegister, pc_offset: u32) -> u32 {
+        self.get_physical(register)
+            .wrapping_add(if register == PhysicalRegister::R15 {
+                pc_offset
+            } else {
+                0
+            })
     }
 
     /// Get the value of the given register as in `Self::get`.

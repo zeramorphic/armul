@@ -7,7 +7,7 @@ use crate::{
     },
     memory::Memory,
     mode::Mode,
-    registers::Registers,
+    registers::{PhysicalRegister, Registers},
 };
 
 #[derive(Debug, Default)]
@@ -843,6 +843,10 @@ impl Processor {
         registers: u16,
         listener: &mut impl ProcessorListener,
     ) -> ProcessorResult {
+        if registers == 0 {
+            return Err(ProcessorError::RegisterListEmpty);
+        }
+
         match kind {
             TransferKind::Store => {
                 listener.cycle(Cycle::Seq, registers.count_ones() as usize - 1, pc);
@@ -878,6 +882,12 @@ impl Processor {
 
         println!("Block transfer: {kind:?} pos={offset_positive} pre={pre_index}");
 
+        let mode = if psr && !(kind == TransferKind::Load && registers & (1 << 15) != 0) {
+            Mode::Usr
+        } else {
+            self.registers.mode().unwrap_or(Mode::Usr)
+        };
+
         let mut written_back = !write_back
             // LDMs always overwrite the updated base if it is in the list.
             || (kind == TransferKind::Load && registers & (1 << base_register as u32) != 0);
@@ -885,22 +895,31 @@ impl Processor {
             if registers & (1 << register) == 0 {
                 continue;
             }
-            let register = Register::from_u4(register, 0);
+            let register = Register::from_u4(register, 0).physical(mode);
 
             if pre_index == offset_positive {
                 address = address.wrapping_add(4);
             }
 
-            println!("Address is {address:0>8X}, register {register}");
+            println!("Address is {address:0>8X}, register {register:?}");
 
             match kind {
                 TransferKind::Store => {
-                    self.memory
-                        .set_word_aligned(address, self.registers.get(register));
+                    self.memory.set_word_aligned(
+                        address,
+                        self.registers.get_physical_pc_offset(register, 12),
+                    );
                 }
                 TransferKind::Load => {
                     self.registers
-                        .set(register, self.memory.get_word_aligned(address));
+                        .set_physical(register, self.memory.get_word_aligned(address));
+                    if register == PhysicalRegister::R15 {
+                        // Pre-decrement.
+                        self.registers.set_physical(
+                            register,
+                            self.registers.get_physical(register).wrapping_sub(4),
+                        );
+                    }
                 }
             }
 
@@ -913,6 +932,16 @@ impl Processor {
                 written_back = true;
                 self.registers.set(base_register, final_address);
             }
+        }
+
+        if psr && kind == TransferKind::Load && registers & (1 << 15) != 0 {
+            let spsr = self
+                .registers
+                .mode()
+                .and_then(|mode| Psr::Spsr.physical(mode))
+                .ok_or(ProcessorError::NoSpsr)?;
+            self.registers
+                .set_physical(PhysicalRegister::Cpsr, self.registers.get_physical(spsr));
         }
 
         if !written_back {
@@ -1122,6 +1151,8 @@ pub enum ProcessorError {
     AddressTooComplex,
     /// An invalid software interrupt was issued.
     InvalidSwi,
+    /// The register list in an LDM/STM was empty.
+    RegisterListEmpty,
 }
 
 #[cfg(test)]

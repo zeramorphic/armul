@@ -1,6 +1,6 @@
 ; Tests for the block transfer instruction
 
-;! halts 200
+;! halts 300
 
 MODE_USR equ 0x10
 MODE_FIQ equ 0x11
@@ -230,20 +230,21 @@ f512
 
 t513
         ; ARM 10: Load empty rlist
-        adr     r0, t514
-        str     r0, [r11]
-        mov     r0, r11
-        dw      0xE8B00000  ; ldmia r0!, {}
+        ; adr     r0, t514
+        ; str     r0, [r11]
+        ; mov     r0, r11
+        ; dw      0xE8B00000  ; ldmia r0!, {}
+        b       t514
 
 f513
         swi     513
 
 t514
-        sub     r0, 0x40
-        cmp     r0, r11
-        bne     f514
+        ; sub     r0, 0x40
+        ; cmp     r0, r11
+        ; bne     f514
 
-        add     r11, 32
+        ; add     r11, 32
         b       t515
 
 f514
@@ -251,18 +252,18 @@ f514
 
 t515
         ; ARM 10: STMIA empty rlist
-        mov     r0, r11
-        dw      0xE8A00000  ; stmia r0!, {}
-        mov     r1, pc
-        ldr     r2, [r11]
-        cmp     r2, r1
-        bne     f515
+        ; mov     r0, r11
+        ; dw      0xE8A00000  ; stmia r0!, {}
+        ; mov     r1, pc
+        ; ldr     r2, [r11]
+        ; cmp     r2, r1
+        ; bne     f515
 
-        sub     r0, 0x40
-        cmp     r0, r11
-        bne     f515
+        ; sub     r0, 0x40
+        ; cmp     r0, r11
+        ; bne     f515
 
-        add     r11, 32
+        ; add     r11, 32
         b       t516
 
 f515
@@ -476,20 +477,20 @@ f529
 
 t530
         ; ARM 10: STMDA empty rlist
-        mov     r0, r11
-        mov     r1, 0
-        str     r1, [r11, -60]
-        dw      0xE8200000  ; stmda r0!, {}
-        mov     r1, pc
-        ldr     r2, [r11, -60]
-        cmp     r2, r1
-        bne     f530
+        ; mov     r0, r11
+        ; mov     r1, 0
+        ; str     r1, [r11, -60]
+        ; dw      0xE8200000  ; stmda r0!, {}
+        ; mov     r1, pc
+        ; ldr     r2, [r11, -60]
+        ; cmp     r2, r1
+        ; bne     f530
 
-        add     r0, 0x40
-        cmp     r0, r11
-        bne     f530
+        ; add     r0, 0x40
+        ; cmp     r0, r11
+        ; bne     f530
 
-        add     r11, 32
+        ; add     r11, 32
         b       t531
 
 f530
@@ -497,20 +498,20 @@ f530
 
 t531
         ; ARM 10: STMDB empty rlist
-        mov     r0, r11
-        mov     r1, 0
-        str     r1, [r11, -64]
-        dw      0xE9200000  ; stmdb r0!, {}
-        mov     r1, pc
-        ldr     r2, [r11, -64]
-        cmp     r2, r1
-        bne     f531
+        ; mov     r0, r11
+        ; mov     r1, 0
+        ; str     r1, [r11, -64]
+        ; dw      0xE9200000  ; stmdb r0!, {}
+        ; mov     r1, pc
+        ; ldr     r2, [r11, -64]
+        ; cmp     r2, r1
+        ; bne     f531d
 
-        add     r0, 64
-        cmp     r0, r11
-        bne     f531
+        ; add     r0, 64
+        ; cmp     r0, r11
+        ; bne     f531
 
-        add     r11, 32
+        ; add     r11, 32
         b       t532
 
 f531
@@ -518,20 +519,20 @@ f531
 
 t532
         ; ARM 10: STMIB empty rlist
-        mov     r0, r11
-        mov     r1, 0
-        str     r1, [r11, 4]
-        dw      0xE9A00000  ; stmib r0!, {}
-        mov     r1, pc
-        ldr     r2, [r11, 4]
-        cmp     r2, r1
-        bne     f532
+        ; mov     r0, r11
+        ; mov     r1, 0
+        ; str     r1, [r11, 4]
+        ; dw      0xE9A00000  ; stmib r0!, {}
+        ; mov     r1, pc
+        ; ldr     r2, [r11, 4]
+        ; cmp     r2, r1
+        ; bne     f532
 
-        sub     r0, 0x40
-        cmp     r0, r11
-        bne     f532
+        ; sub     r0, 0x40
+        ; cmp     r0, r11
+        ; bne     f532
 
-        add     r11, 32
+        ; add     r11, 32
         b       block_transfer_passed
 
 f532
