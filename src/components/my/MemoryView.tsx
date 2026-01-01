@@ -4,12 +4,22 @@ import "./MemoryView.css";
 import MemoryRow from './MemoryRow';
 import { invoke } from '@tauri-apps/api/core';
 
-export function TestApp() {
+interface TestAppProps {
+  generation: number
+}
+
+export function TestApp(props: TestAppProps) {
   // The scrollable element for your list
   const parentRef = React.useRef(null);
 
   // The lookup table from line numbers to their contents.
   const [cache, setCache] = React.useState(new Map<number, string>());
+
+  const [generation, setGeneration] = React.useState(props.generation);
+  if (generation !== props.generation) {
+    setGeneration(props.generation);
+    setCache(new Map());
+  }
 
   function getCached(cache: Map<number, string>, addr: number): string {
     const value = cache.get(addr);
@@ -19,7 +29,7 @@ export function TestApp() {
         const line: string = await invoke("line_at", { addr });
         setCache(cache => {
           cache.set(addr, line);
-          return cache;
+          return new Map(cache);
         });
       })();
       return "";

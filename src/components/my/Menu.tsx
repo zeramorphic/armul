@@ -1,20 +1,48 @@
 import {
   Menubar,
-  MenubarCheckboxItem,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
-  MenubarRadioGroup,
-  MenubarRadioItem,
-  MenubarSeparator,
   MenubarShortcut,
-  MenubarSub,
-  MenubarSubContent,
-  MenubarSubTrigger,
   MenubarTrigger,
 } from "@/components/ui/menubar"
 import "./Menu.css";
+import React from "react";
+import { useHotkeys } from 'react-hotkeys-hook'
 
+interface MenuProps {
+  openFile: (file: File) => void;
+}
+
+export function Menu(props: MenuProps) {
+  const openFileInput = React.useRef<HTMLInputElement>(null);
+  useHotkeys('ctrl+o', () => openFileInput.current?.click());
+
+  return (
+    <div>
+      {/* TODO: The `accept` attribute isn't working as intended. */}
+      <input type="file" style={{ "display": "none" }} ref={openFileInput} accept=".s," onChange={event => {
+        if (event.target.files?.length === 1) {
+          props.openFile(event.target.files[0]);
+        }
+      }} />
+      <Menubar>
+        <MenubarMenu>
+          <MenubarTrigger>File</MenubarTrigger>
+          <MenubarContent>
+            <MenubarItem onClick={() => openFileInput.current?.click()}>
+              Open File...
+              <MenubarShortcut>Ctrl+O</MenubarShortcut>
+            </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+      </Menubar>
+    </div>
+  )
+}
+
+/*
+// Example code from Shadcn UI.
 export function Menu() {
   return (
     <Menubar>
@@ -106,3 +134,4 @@ export function Menu() {
     </Menubar>
   )
 }
+*/

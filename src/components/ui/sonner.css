@@ -1,0 +1,15 @@
+[data-sonner-toaster] {
+    font-family: var(--body-font) !important;
+    font-size: 16px !important;
+    line-height: 24px !important;
+    font-weight: 400 !important;
+
+    color: #0f0f0f !important;
+    background-color: #f6f6f6 !important;
+
+    font-synthesis: none !important;
+    text-rendering: optimizeLegibility !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    -webkit-text-size-adjust: 100% !important;
+}

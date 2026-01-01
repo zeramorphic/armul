@@ -1,4 +1,3 @@
-import React from "react";
 import "./MemoryRow.css"
 
 interface MemoryRowProps {

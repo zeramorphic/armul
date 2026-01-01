@@ -50,7 +50,7 @@ pub fn parse(src: &str) -> Result<Vec<AsmLine>, Vec<AssemblerError>> {
                     let line = line_number(&line_indices, *err.span());
                     let col = err.span().start.saturating_sub(
                         line_indices
-                            .get(line - 2)
+                            .get(line.saturating_sub(2))
                             .copied()
                             .unwrap_or(line_indices.last().copied().unwrap_or_default()),
                     ) + 1;

@@ -5,6 +5,7 @@ mod parser;
 mod syntax;
 
 use assembler::HealStrategy;
+use serde::Serialize;
 
 #[derive(Debug)]
 pub struct AssemblerOutput {
@@ -14,13 +15,13 @@ pub struct AssemblerOutput {
     pub passes: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct AssemblerError {
     pub line_number: usize,
     pub error: LineError,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum LineError {
     ParseError(String),
     ExpectedRegister(String),

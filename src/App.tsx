@@ -1,50 +1,40 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
-import { Button } from "./components/ui/button";
 import { Menu } from "./components/my/Menu";
 import { TestApp } from "./components/my/MemoryView";
+import { Toaster } from "./components/ui/sonner";
+import { toast } from "sonner";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  const [generation, setGeneration] = useState(0);
 
   return (
-    <main className="container">
-      <div className="row">
-        <Menu />
-      </div>
+    <>
+      <main className="container">
+        <div className="row">
+          <Menu openFile={file => {
+            console.log("Loading", file);
+            const loadEnvFile = async () => {
+              const contents = await file.text();
+              await invoke("load_program", { contents });
+              setGeneration(i => i + 1);
+            };
+            toast.promise(loadEnvFile().catch(err => {
+              console.error("Couldn't load", file, err);
+              throw err
+            }), {
+              loading: "Loading " + file.name + "...",
+              success: "Loaded " + file.name + ".",
+              error: "Could not load " + file.name + "."
+            });
+          }} />
+        </div>
 
-      <h1>Hello!</h1>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <Button variant="outline" type="submit">Greet</Button>
-      </form>
-      <p>{greetMsg}</p>
-
-      {/* <div style={{ flex: `1`, backgroundColor: "cyan" }}>
-      </div> */}
-      {/* <div style={{ flex: `1 0 100%`, overflow: "auto" }}> */}
-      <TestApp />
-      {/* </div> */}
-
-    </main>
+        <TestApp generation={generation} />
+      </main>
+      <Toaster />
+    </>
   );
 }
 

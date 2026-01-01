@@ -8,3 +8,4 @@ chumsky = { version = "0.12.0", features = ["pratt"] }
 logos = "0.16.0"
 num-derive = "0.4.2"
 num-traits = "0.2.19"
+serde = { version = "1.0.228", features = ["derive"] }

@@ -57,7 +57,11 @@ impl Memory {
     pub fn set_word_aligned(&mut self, addr: u32, value: u32) {
         println!("(mem) set {addr:0>8X} := {value:0>8X}");
         let (a, b, c, _) = to_indices(addr);
-        self.root[a].get_or_insert_default()[b].get_or_insert_default()[c] = value;
+        self.root[a].get_or_insert_default()[b].get_or_insert_with(|| {
+            Box::new(Page {
+                entries: std::array::from_fn(|_| self.default_word),
+            })
+        })[c] = value;
     }
 
     pub fn set_words_aligned(&mut self, addr: u32, values: &[u32]) {
@@ -68,7 +72,11 @@ impl Memory {
 
     pub fn set_byte(&mut self, addr: u32, value: u8) {
         let (a, b, c, d) = to_indices(addr);
-        let location = &mut self.root[a].get_or_insert_default()[b].get_or_insert_default()[c];
+        let location = &mut self.root[a].get_or_insert_default()[b].get_or_insert_with(|| {
+            Box::new(Page {
+                entries: std::array::from_fn(|_| self.default_word),
+            })
+        })[c];
         let mut bytes = location.to_le_bytes();
         bytes[d as usize] = value;
         *location = u32::from_le_bytes(bytes)

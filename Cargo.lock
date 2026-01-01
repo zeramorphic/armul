@@ -70,6 +70,7 @@ dependencies = [
  "logos",
  "num-derive",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
