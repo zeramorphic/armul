@@ -1,19 +1,12 @@
-import { invoke } from "@tauri-apps/api/core";
+import React from "react";
 import "./MemoryRow.css"
-import { useState } from "react";
 
 interface MemoryRowProps {
-  addr: number
+  addr: number,
+  contents: string,
 };
 
 export default function (props: MemoryRowProps) {
-  const [data, setData] = useState("");
-
-  (async () => {
-    const result: string = await invoke("line_at", { addr: props.addr });
-    setData(result);
-  })();
-
   return (
     <p className="MemoryRow">
       <span style={{
@@ -22,7 +15,7 @@ export default function (props: MemoryRowProps) {
         {("00000000" + props.addr.toString(16).toUpperCase()).slice(-8)}
       </span>
       &nbsp;
-      {data}
+      {props.contents}
     </p>
   )
 }
