@@ -1,5 +1,6 @@
 import {
   Menubar,
+  MenubarCheckboxItem,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -9,14 +10,26 @@ import {
 import "./Menu.css";
 import React from "react";
 import { useHotkeys } from 'react-hotkeys-hook'
+import { ThemeProviderState, useTheme } from "../theme-provider";
 
 interface MenuProps {
   openFile: (file: File) => void;
 }
 
+function toggleDarkMode(themeProvider: ThemeProviderState) {
+  if (themeProvider.theme == 'dark') {
+    themeProvider.setTheme('light');
+  } else {
+    themeProvider.setTheme('dark');
+  }
+}
+
 export function Menu(props: MenuProps) {
+  const themeProvider = useTheme();
+
   const openFileInput = React.useRef<HTMLInputElement>(null);
   useHotkeys('ctrl+o', () => openFileInput.current?.click());
+  useHotkeys('ctrl+k', () => toggleDarkMode(themeProvider));
 
   return (
     <div>
@@ -34,6 +47,15 @@ export function Menu(props: MenuProps) {
               Open File...
               <MenubarShortcut>Ctrl+O</MenubarShortcut>
             </MenubarItem>
+          </MenubarContent>
+        </MenubarMenu>
+        <MenubarMenu>
+          <MenubarTrigger>View</MenubarTrigger>
+          <MenubarContent>
+            <MenubarCheckboxItem checked={themeProvider.theme == 'dark'} onClick={() => toggleDarkMode(themeProvider)}>
+              Dark Mode
+              <MenubarShortcut>Ctrl+K</MenubarShortcut>
+            </MenubarCheckboxItem>
           </MenubarContent>
         </MenubarMenu>
       </Menubar>

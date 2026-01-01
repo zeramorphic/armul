@@ -5,12 +5,13 @@ import { Menu } from "./components/my/Menu";
 import { TestApp } from "./components/my/MemoryView";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
+import { ThemeProvider } from "./components/theme-provider";
 
 function App() {
   const [generation, setGeneration] = useState(0);
 
   return (
-    <>
+    <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
       <main className="container">
         <div className="row">
           <Menu openFile={file => {
@@ -34,7 +35,7 @@ function App() {
         <TestApp generation={generation} />
       </main>
       <Toaster />
-    </>
+    </ThemeProvider>
   );
 }
 
