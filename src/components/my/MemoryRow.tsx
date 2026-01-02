@@ -170,9 +170,11 @@ export default function MemoryRow(props: MemoryRowProps) {
           : (<span style={{ color: `var(--muted-foreground)` }}>???</span>);
         break;
       case 'Memory':
-        body = props.info.value.toString();
         if (props.info.value >= ~(1 << 31)) {
-          body += " (-" + (~(props.info.value) + 1) + ")";
+          const start = "-" + (~(props.info.value) + 1);
+          body = <span>{start}{Array.from({ length: 12 - start.length }, (_, i) => <span key={i}>&nbsp;</span>)} ({props.info.value})</span>;
+        } else {
+          body = props.info.value.toString();
         }
         break;
     }

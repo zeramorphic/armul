@@ -26,6 +26,8 @@ f350
 
 t351
         ; ARM 7: Store byte
+        mov     r0, 0
+        str     r0, [r11]
         mvn     r0, 0
         strb    r0, [r11]
         ldr     r1, [r11]

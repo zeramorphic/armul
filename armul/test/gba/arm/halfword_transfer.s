@@ -163,6 +163,8 @@ f409
 
 t410
         ; ARM 8: Store writeback same register
+        mov     r0, 0
+        str     r0, [r11, 4]
         mov     r0, r11
         dw      0xE1E000B4  ; strh r0, [r0, 4]!
         add     r1, r11, 4
@@ -184,6 +186,9 @@ f410
 
 t411
         ; ARM 8: Store writeback same register
+        mov     r0, 0
+        str     r0, [r11]
+        str     r0, [r11, 4]
         mov     r0, r11
         dw      0xE0C000B4  ; strh r0, [r0], 4
         sub     r0, 4
