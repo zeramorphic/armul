@@ -197,8 +197,8 @@ export default function MemoryRow(props: MemoryRowProps) {
 export function renderNumber(value: number) {
   if (value >= ~(1 << 31)) {
     const start = "-" + (~value + 1);
-    return <span>{start}{Array.from({ length: 11 - start.length }, (_, i) => <span key={i}>&nbsp;</span>)} <span className="faint">({value})</span></span>;
+    return <span>{start.padStart(11).replace(/ /g, "\u00A0")} <span className="faint">({value})</span></span>;
   } else {
-    return value.toString();
+    return <span>{value.toString().padStart(11).replace(/ /g, "\u00A0")}</span>;
   }
 }

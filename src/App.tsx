@@ -76,12 +76,23 @@ function App() {
 
   const model = Model.fromJson(modelJson);
 
+  const refreshUI = () => {
+    setGeneration(i => i + 1);
+  }
+
+  const stepOnce = () => {
+    (async () => {
+      await invoke('step_once');
+      refreshUI();
+    })();
+  };
+
   const factory = (node: TabNode) => {
     const component = node.getComponent();
 
     switch (component) {
       case 'placeholder': return <div>{node.getName()}</div>;
-      case 'status': return <Status generation={generation} />
+      case 'status': return <Status stepOnce={stepOnce} generation={generation} />
       case 'disas': return <MemoryView mode={'Disassemble'} generation={generation} />
       case 'memory': return <MemoryView mode={'Memory'} generation={generation} />
     }
@@ -96,7 +107,7 @@ function App() {
             const loadEnvFile = async () => {
               const contents = await file.text();
               await invoke("load_program", { contents });
-              setGeneration(i => i + 1);
+              refreshUI();
             };
             toast.promise(loadEnvFile().catch(err => {
               console.error("Couldn't load", file, err);

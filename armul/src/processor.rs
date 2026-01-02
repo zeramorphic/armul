@@ -1,5 +1,7 @@
 //! A model of the ARM7TDMI processor.
 
+use serde::Serialize;
+
 use crate::{
     instr::{
         DataOp, DataOperand, Instr, MsrSource, Psr, Register, Shift, ShiftAmount, ShiftType,
@@ -17,7 +19,7 @@ pub struct Processor {
     state: ProcessorState,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ProcessorState {
     #[default]
     Running,
@@ -1136,7 +1138,7 @@ pub type ProcessorResult = Result<(), ProcessorError>;
 
 /// The type of possible errors that can be encountered
 /// while executing an instruction.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum ProcessorError {
     /// The program counter was not 4-byte aligned.
     UnalignedPc,

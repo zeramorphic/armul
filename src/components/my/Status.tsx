@@ -2,9 +2,13 @@ import React from 'react';
 import './Status.css';
 import { invoke } from '@tauri-apps/api/core';
 import { renderNumber } from './MemoryRow';
+import { ButtonGroup } from '../ui/button-group';
+import { Button } from '../ui/button';
+import { PlayIcon, RefreshCwIcon, StepForwardIcon } from 'lucide-react';
 
 interface StatusProps {
   generation: number,
+  stepOnce: () => void;
 };
 
 interface Registers {
@@ -25,12 +29,17 @@ export default function Status(props: StatusProps) {
 
   React.useEffect(() => {
     (async () => {
-      console.log("Gen bump!");
       // Race conditions don't matter here because as soon as the data updates,
       // we get given a new generation.
       setRegisters(await invoke('registers'));
     })();
   }, [generation]);
+
+  const transport = <ButtonGroup>
+    <Button variant="outline"><PlayIcon /></Button>
+    <Button variant="outline" onClick={props.stepOnce}><StepForwardIcon /></Button>
+    <Button variant="outline"><RefreshCwIcon /></Button>
+  </ButtonGroup>;
 
   const regs = <table className="registers">
     <tbody>
@@ -104,6 +113,8 @@ export default function Status(props: StatusProps) {
   const cpsr = <span>Flags: {registers.regs[31].toString(16).toUpperCase().padStart(8, '0')}</span>;
 
   return <div className="status">
+    {transport}
+    <Vspace />
     {regs}
     <Vspace />
     {cpsr}
