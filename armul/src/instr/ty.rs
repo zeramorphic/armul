@@ -4,10 +4,14 @@ use std::{fmt::Display, str::FromStr};
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use serde::Serialize;
+use serde_repr::Serialize_repr;
 
 /// Enumerates the registers that can be directly referenced in code.
 /// In reality there are a total of 37 registers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, Serialize_repr,
+)]
 #[repr(u8)]
 pub enum Register {
     R0,
@@ -472,7 +476,7 @@ impl RotatedConstant {
 
 /// The possible ways to shift the second operand
 /// of a data-processing instruction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct Shift {
     pub shift_type: ShiftType,
     pub shift_amount: ShiftAmount,
@@ -490,7 +494,7 @@ impl Display for Shift {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, FromPrimitive, Serialize)]
 #[repr(u8)]
 pub enum ShiftType {
     /// Arithmetic left is the same as logical left.
@@ -516,7 +520,8 @@ impl Display for ShiftType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(tag = "type", content = "value")]
 pub enum ShiftAmount {
     /// Shift by the given 5-bit unsigned integer.
     Constant(u8),
@@ -587,7 +592,7 @@ impl Display for TransferSizeSpecial {
 }
 
 /// Program status register.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, Serialize)]
 pub enum Psr {
     Cpsr,
     Spsr,

@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import React from 'react';
 import "./MemoryView.css";
-import MemoryRow from './MemoryRow';
+import MemoryRow, { LineInfo } from './MemoryRow';
 import { invoke } from '@tauri-apps/api/core';
 
 interface TestAppProps {
@@ -13,7 +13,7 @@ export function TestApp(props: TestAppProps) {
   const parentRef = React.useRef(null);
 
   // The lookup table from line numbers to their contents.
-  const [cache, setCache] = React.useState(new Map<number, string>());
+  const [cache, setCache] = React.useState(new Map<number, LineInfo | null>());
 
   const [generation, setGeneration] = React.useState(props.generation);
   if (generation !== props.generation) {
@@ -21,18 +21,18 @@ export function TestApp(props: TestAppProps) {
     setCache(new Map());
   }
 
-  function getCached(cache: Map<number, string>, addr: number): string {
+  function getCached(cache: Map<number, LineInfo | null>, addr: number): LineInfo | null {
     const value = cache.get(addr);
     if (value === undefined) {
-      cache.set(addr, "");
+      cache.set(addr, null);
       (async () => {
-        const line: string = await invoke("line_at", { addr });
+        const line: LineInfo = await invoke("line_at", { addr });
         setCache(cache => {
           cache.set(addr, line);
           return new Map(cache);
         });
       })();
-      return "";
+      return null;
     } else {
       return value;
     }
@@ -82,7 +82,7 @@ export function TestApp(props: TestAppProps) {
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <MemoryRow addr={addr} contents={getCached(cache, addr)} />
+                <MemoryRow addr={addr} info={getCached(cache, addr)} />
               </div>
             );
           })}

@@ -1,5 +1,6 @@
 use armul::{
-    assemble::{assemble, AssemblerError},
+    assemble::{assemble, AssemblerError, AssemblerOutput},
+    instr::LineInfo,
     processor::Processor,
 };
 use parking_lot::RwLock;
@@ -8,12 +9,16 @@ use parking_lot::RwLock;
 
 #[derive(Default)]
 struct MyState {
-    processor: RwLock<Processor>,
+    assembled: Option<AssemblerOutput>,
+    processor: Processor,
 }
+
+#[derive(Default)]
+struct MyStateLock(RwLock<MyState>);
 
 #[tauri::command]
 async fn load_program(
-    state: tauri::State<'_, MyState>,
+    state: tauri::State<'_, MyStateLock>,
     contents: &str,
 ) -> Result<(), Vec<AssemblerError>> {
     let assembled = assemble(contents)?;
@@ -21,20 +26,25 @@ async fn load_program(
     new_processor
         .memory_mut()
         .set_words_aligned(0, &assembled.instrs);
-    *state.processor.write() = new_processor;
+    state.0.write().processor = new_processor;
     Ok(())
 }
 
 #[tauri::command]
-fn line_at(state: tauri::State<'_, MyState>, addr: u32) -> u32 {
-    state.processor.read().memory().get_word_aligned(addr)
+fn line_at(state: tauri::State<'_, MyStateLock>, addr: u32) -> LineInfo {
+    let state = state.0.read();
+    LineInfo::new(
+        addr,
+        state.processor.memory().get_word_aligned(addr),
+        state.assembled.as_ref(),
+    )
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(MyState::default())
+        .manage(MyStateLock::default())
         .invoke_handler(tauri::generate_handler![load_program, line_at])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

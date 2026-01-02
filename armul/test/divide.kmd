@@ -1,0 +1,32 @@
+KMD
+00000000:             ; ; A general-purpose division routine from the ARM data sheet.
+00000000:             ; 
+00000000:             ; ;! steps 48
+00000000:             ; ;! r0 0
+00000000:             ; ;! r1 1
+00000000:             ; ;! r2 6
+00000000:             ; ;! r3 6
+00000000:             ; ;! pc end
+00000000:             ; 
+00000000: E3A01025    ;         mov r1,#37
+00000004: E3A02006    ;         mov r2,#6
+00000008: E3A00001    ;         mov r0,#1
+0000000C: E3520102    ; div1    cmp r2,#0x80000000
+00000010: 31520001    ;         cmpcc r2,r1
+00000014: 31A02082    ;         movcc r2,r2,asl#1
+00000018: 31A00080    ;         movcc r0,r0,asl#1
+0000001C: 3AFFFFFA    ;         bcc div1
+00000020: E3A03000    ;         mov r3,#0
+00000024: E1510002    ; div2    cmp r1,r2
+00000028: 20411002    ;         subcs r1,r1,r2
+0000002C: 20833000    ;         addcs r3,r3,r0
+00000030: E1B000A0    ;         movs r0,r0,lsr#1
+00000034: 11A020A2    ;         movne r2,r2,lsr#1
+00000038: 1AFFFFF9    ;         bne div2
+0000003C:             ; end
+0000003C:             ; 
+
+Symbol Table: Labels
+: div1                              0000000C  Local -- ARM
+: div2                              00000024  Local -- ARM
+: end                               0000003C  Local -- ARM

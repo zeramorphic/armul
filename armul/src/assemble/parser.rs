@@ -374,9 +374,9 @@ impl Display for Opcode {
                     write!(f, "MUL")?;
                 }
                 if set_condition_codes {
-                    write!(f, "S")
+                    write!(f, "LS")
                 } else {
-                    Ok(())
+                    write!(f, "L")
                 }
             }
             Opcode::SingleTransfer(transfer_kind, transfer_size, t) => {
