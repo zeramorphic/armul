@@ -31,12 +31,13 @@ async fn load_program(
 }
 
 #[tauri::command]
-fn line_at(state: tauri::State<'_, MyStateLock>, addr: u32) -> LineInfo {
+fn line_at(state: tauri::State<'_, MyStateLock>, addr: u32, disassemble: bool) -> LineInfo {
     let state = state.0.read();
     LineInfo::new(
         addr,
         state.processor.memory().get_word_aligned(addr),
         state.assembled.as_ref(),
+        disassemble,
     )
 }
 

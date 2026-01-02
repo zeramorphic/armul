@@ -19,10 +19,19 @@ pub struct LineInfo {
 
 impl LineInfo {
     /// Generate the line info for the given value, given the symbol table information in the assembler output.
-    pub fn new(address: u32, value: u32, assembled: Option<&AssemblerOutput>) -> Self {
+    pub fn new(
+        address: u32,
+        value: u32,
+        assembled: Option<&AssemblerOutput>,
+        disassemble: bool,
+    ) -> Self {
         LineInfo {
             value,
-            instr: Instr::decode(value).map(|(cond, instr)| PrettyInstr::new(address, cond, instr)),
+            instr: if disassemble {
+                Instr::decode(value).map(|(cond, instr)| PrettyInstr::new(address, cond, instr))
+            } else {
+                None
+            },
         }
     }
 }

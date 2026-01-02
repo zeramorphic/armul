@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import "./MemoryRow.css"
 
 interface MemoryRowProps {
+  mode: 'Disassemble' | 'Memory',
   addr: number,
   info: LineInfo | null,
 };
@@ -159,9 +160,23 @@ export default function MemoryRow(props: MemoryRowProps) {
   const hex = props.info
     ? props.info.value.toString(16).toUpperCase().padStart(8, "0")
     : "";
-  const instr = props.info?.instr
-    ? renderPrettyInstr(props.info?.instr)
-    : (<span style={{ color: `var(--muted-foreground)` }}>???</span>);
+
+  var body: ReactNode = "";
+  if (props.info) {
+    switch (props.mode) {
+      case 'Disassemble':
+        body = props.info?.instr
+          ? renderPrettyInstr(props.info?.instr)
+          : (<span style={{ color: `var(--muted-foreground)` }}>???</span>);
+        break;
+      case 'Memory':
+        body = props.info.value.toString();
+        if (props.info.value >= ~(1 << 31)) {
+          body += " (-" + (~(props.info.value) + 1) + ")";
+        }
+        break;
+    }
+  }
 
   return (
     <p className="MemoryRow">
@@ -177,7 +192,7 @@ export default function MemoryRow(props: MemoryRowProps) {
         {hex}
       </span>
       <Skip />
-      <span>{instr}</span>
+      <span>{body}</span>
     </p>
   )
 }

@@ -4,11 +4,12 @@ import "./MemoryView.css";
 import MemoryRow, { LineInfo } from './MemoryRow';
 import { invoke } from '@tauri-apps/api/core';
 
-interface TestAppProps {
-  generation: number
+interface MemoryViewProps {
+  generation: number,
+  mode: 'Disassemble' | 'Memory',
 }
 
-export function TestApp(props: TestAppProps) {
+export function MemoryView(props: MemoryViewProps) {
   // The scrollable element for your list
   const parentRef = React.useRef(null);
 
@@ -26,7 +27,10 @@ export function TestApp(props: TestAppProps) {
     if (value === undefined) {
       cache.set(addr, null);
       (async () => {
-        const line: LineInfo = await invoke("line_at", { addr });
+        const line: LineInfo = await invoke("line_at", {
+          addr,
+          disassemble: props.mode === 'Disassemble'
+        });
         setCache(cache => {
           cache.set(addr, line);
           return new Map(cache);
@@ -82,7 +86,7 @@ export function TestApp(props: TestAppProps) {
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <MemoryRow addr={addr} info={getCached(cache, addr)} />
+                <MemoryRow mode={props.mode} addr={addr} info={getCached(cache, addr)} />
               </div>
             );
           })}
