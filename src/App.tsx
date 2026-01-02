@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { IJsonModel, Layout, Model, TabNode } from 'flexlayout-react';
 import './flexlayout.css';
 import { useTheme } from "./components/theme-provider";
+import Status from "./components/my/Status";
 
 var modelJson: IJsonModel = {
   global: {
@@ -23,19 +24,19 @@ var modelJson: IJsonModel = {
         type: "tabset",
         enableSingleTabStretch: true,
         enableClose: false,
-        weight: 30,
+        weight: 20,
         children: [
           {
             type: "tab",
             enableClose: false,
-            name: "One",
-            component: "placeholder",
+            name: "Status",
+            component: "status",
           }
         ]
       },
       {
         type: "row",
-        weight: 70,
+        weight: 80,
         children: [
           {
             type: "tabset",
@@ -80,6 +81,7 @@ function App() {
 
     switch (component) {
       case 'placeholder': return <div>{node.getName()}</div>;
+      case 'status': return <Status generation={generation} />
       case 'disas': return <MemoryView mode={'Disassemble'} generation={generation} />
       case 'memory': return <MemoryView mode={'Memory'} generation={generation} />
     }

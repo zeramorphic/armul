@@ -2,6 +2,7 @@ use armul::{
     assemble::{assemble, AssemblerError, AssemblerOutput},
     instr::LineInfo,
     processor::Processor,
+    registers::Registers,
 };
 use parking_lot::RwLock;
 
@@ -41,12 +42,17 @@ fn line_at(state: tauri::State<'_, MyStateLock>, addr: u32, disassemble: bool) -
     )
 }
 
+#[tauri::command]
+fn registers(state: tauri::State<'_, MyStateLock>) -> Registers {
+    state.0.read().processor.registers().clone()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(MyStateLock::default())
-        .invoke_handler(tauri::generate_handler![load_program, line_at])
+        .invoke_handler(tauri::generate_handler![load_program, line_at, registers])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

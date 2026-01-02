@@ -19,8 +19,9 @@ export function MemoryView(props: MemoryViewProps) {
   const [generation, setGeneration] = React.useState(props.generation);
   if (generation !== props.generation) {
     setGeneration(props.generation);
-    setCache(new Map());
   }
+
+  React.useEffect(() => setCache(new Map()), [generation]);
 
   function getCached(cache: Map<number, LineInfo | null>, addr: number): LineInfo | null {
     const value = cache.get(addr);

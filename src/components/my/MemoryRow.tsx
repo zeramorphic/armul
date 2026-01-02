@@ -170,12 +170,7 @@ export default function MemoryRow(props: MemoryRowProps) {
           : (<span style={{ color: `var(--muted-foreground)` }}>???</span>);
         break;
       case 'Memory':
-        if (props.info.value >= ~(1 << 31)) {
-          const start = "-" + (~(props.info.value) + 1);
-          body = <span>{start}{Array.from({ length: 12 - start.length }, (_, i) => <span key={i}>&nbsp;</span>)} ({props.info.value})</span>;
-        } else {
-          body = props.info.value.toString();
-        }
+        body = renderNumber(props.info.value);
         break;
     }
   }
@@ -197,4 +192,13 @@ export default function MemoryRow(props: MemoryRowProps) {
       <span>{body}</span>
     </p>
   )
+}
+
+export function renderNumber(value: number) {
+  if (value >= ~(1 << 31)) {
+    const start = "-" + (~value + 1);
+    return <span>{start}{Array.from({ length: 11 - start.length }, (_, i) => <span key={i}>&nbsp;</span>)} <span className="faint">({value})</span></span>;
+  } else {
+    return value.toString();
+  }
 }

@@ -3,6 +3,7 @@
 use std::fmt::Display;
 
 use num_derive::FromPrimitive;
+use serde::Serialize;
 
 use crate::{
     instr::{Cond, Psr, Register},
@@ -105,9 +106,10 @@ impl Psr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Registers {
     /// 31 general-purpose data registers and 6 status registers.
+    #[serde(serialize_with = "<[_]>::serialize")]
     regs: [u32; 37],
 }
 
