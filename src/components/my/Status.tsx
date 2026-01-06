@@ -1,46 +1,35 @@
-import React from 'react';
 import './Status.css';
-import { invoke } from '@tauri-apps/api/core';
 import { renderNumber } from './MemoryRow';
 import { ButtonGroup } from '../ui/button-group';
 import { Button } from '../ui/button';
 import { PlayIcon, RefreshCwIcon, StepForwardIcon } from 'lucide-react';
+import { useContext } from 'react';
+import { ProcessorContext } from '@/lib/ProcessorContext';
+import Processor from '@/lib/processor';
+import { invoke } from '@tauri-apps/api/core';
 
 interface StatusProps {
-  generation: number,
-  stepOnce: () => void;
 };
-
-interface Registers {
-  regs: number[],
-}
 
 function Vspace() {
   return <div style={{ paddingBottom: `5px` }}></div>;
 }
 
+async function stepOnce(processor: Processor) {
+  await invoke('step_once');
+  await processor.resynchronise();
+}
+
 export default function Status(props: StatusProps) {
-  const [generation, setGeneration] = React.useState(props.generation);
-  const [registers, setRegisters] = React.useState<Registers>({ regs: Array(37).fill(0) });
-
-  if (generation !== props.generation) {
-    setGeneration(props.generation);
-  }
-
-  React.useEffect(() => {
-    (async () => {
-      // Race conditions don't matter here because as soon as the data updates,
-      // we get given a new generation.
-      setRegisters(await invoke('registers'));
-    })();
-  }, [generation]);
+  const processor = useContext(ProcessorContext);
 
   const transport = <ButtonGroup>
     <Button variant="outline"><PlayIcon /></Button>
-    <Button variant="outline" onClick={props.stepOnce}><StepForwardIcon /></Button>
+    <Button variant="outline" onClick={() => stepOnce(processor)}><StepForwardIcon /></Button>
     <Button variant="outline"><RefreshCwIcon /></Button>
   </ButtonGroup>;
 
+  const registers = useContext(ProcessorContext).registers;
   const regs = <table className="registers">
     <tbody>
       <tr>

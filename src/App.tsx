@@ -9,6 +9,8 @@ import { IJsonModel, Layout, Model, TabNode } from 'flexlayout-react';
 import './flexlayout.css';
 import { useTheme } from "./components/theme-provider";
 import Status from "./components/my/Status";
+import Processor from "./lib/processor";
+import { ProcessorContext } from "./lib/ProcessorContext";
 
 var modelJson: IJsonModel = {
   global: {
@@ -70,33 +72,22 @@ var modelJson: IJsonModel = {
   }
 };
 
+const model = Model.fromJson(modelJson);
+const factory = (node: TabNode) => {
+  const component = node.getComponent();
+
+  switch (component) {
+    case 'placeholder': return <div>{node.getName()}</div>;
+    case 'status': return <Status />;
+    case 'disas': return <MemoryView mode={'Disassemble'} />;
+    case 'memory': return <MemoryView mode={'Memory'} />;
+  }
+};
+const layout = <Layout model={model} factory={factory} supportsPopout={true} />;
+
 function App() {
-  const [generation, setGeneration] = useState(0);
+  const [processor, setProcessor] = useState<Processor>(new Processor(() => setProcessor(proc => proc.repack())));
   const theme = useTheme();
-
-  const model = Model.fromJson(modelJson);
-
-  const refreshUI = () => {
-    setGeneration(i => i + 1);
-  }
-
-  const stepOnce = () => {
-    (async () => {
-      await invoke('step_once');
-      refreshUI();
-    })();
-  };
-
-  const factory = (node: TabNode) => {
-    const component = node.getComponent();
-
-    switch (component) {
-      case 'placeholder': return <div>{node.getName()}</div>;
-      case 'status': return <Status stepOnce={stepOnce} generation={generation} />
-      case 'disas': return <MemoryView mode={'Disassemble'} generation={generation} />
-      case 'memory': return <MemoryView mode={'Memory'} generation={generation} />
-    }
-  }
 
   return (
     <>
@@ -107,7 +98,7 @@ function App() {
             const loadEnvFile = async () => {
               const contents = await file.text();
               await invoke("load_program", { contents });
-              refreshUI();
+              await processor.resynchronise();
             };
             toast.promise(loadEnvFile().catch(err => {
               console.error("Couldn't load", file, err);
@@ -121,10 +112,9 @@ function App() {
         </div>
 
         <div className={'mainbody row ' + (theme.theme === 'light' ? "flexlayout__theme_light" : "flexlayout__theme_dark")}>
-          <Layout model={model} factory={factory} supportsPopout={true} onModelChange={(model, _action) => {
-            // Save the model to JSON so that when we change to/from dark mode everything stays put.
-            modelJson = model.toJson();
-          }} />
+          <ProcessorContext value={processor}>
+            {layout}
+          </ProcessorContext>
         </div>
       </main>
       <Toaster />

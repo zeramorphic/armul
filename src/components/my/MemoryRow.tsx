@@ -1,71 +1,11 @@
-import { ReactNode } from "react";
+import { ReactNode, useContext } from "react";
 import "./MemoryRow.css"
+import { PrettyArgument, PrettyInstr, ShiftType } from "@/lib/serde-types";
+import { ProcessorContext } from "@/lib/ProcessorContext";
+import { RowComponentProps } from "react-window";
 
 interface MemoryRowProps {
   mode: 'Disassemble' | 'Memory',
-  addr: number,
-  info: LineInfo | null,
-};
-
-export interface LineInfo {
-  value: number,
-  instr?: PrettyInstr,
-};
-
-interface PrettyInstr {
-  opcode_prefix: string,
-  cond: string,
-  opcode_suffix: string,
-  args: PrettyArgument[],
-};
-
-type PrettyArgument = RegisterArgument | PsrArgument | ShiftArgument | ConstantArgument | RegisterSetArgument;
-
-interface RegisterArgument {
-  type: 'Register',
-  register: number,
-  negative: boolean,
-  write_back: boolean,
-};
-
-interface PsrArgument {
-  type: 'Psr',
-  psr: string,
-  flag: boolean,
-};
-
-interface ShiftArgument {
-  type: 'Shift',
-  shift_type: ShiftType,
-  shift_amount: ShiftAmount,
-};
-
-type ShiftType = 'LogicalLeft' | 'LogicalRight' | 'ArithmeticRight' | 'RotateRight' | 'RotateRightExtended';
-
-type ShiftAmount = ConstantShiftAmount | RegisterShiftAmount;
-
-interface ConstantShiftAmount {
-  type: 'Constant',
-  value: number,
-}
-
-interface RegisterShiftAmount {
-  type: 'Register',
-  value: number,
-}
-
-interface ConstantArgument {
-  type: 'Constant',
-  value: number,
-  style: ConstantStyle,
-};
-
-type ConstantStyle = 'Address' | 'UnsignedDecimal' | 'Unknown';
-
-interface RegisterSetArgument {
-  type: 'RegisterSet',
-  registers: number[],
-  caret: boolean,
 };
 
 function Skip() {
@@ -156,31 +96,35 @@ function renderAddress(address: number): ReactNode {
   return <><span className="addr-faint">0x{'0'.repeat(8 - str.length)}</span><span className="addr">{str}</span></>;
 }
 
-export default function MemoryRow(props: MemoryRowProps) {
-  const hex = props.info
-    ? props.info.value.toString(16).toUpperCase().padStart(8, "0")
+export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
+  const processor = useContext(ProcessorContext);
+  const addr = props.index * 4;
+  const info = processor.get_memory(addr);
+
+  const hex = info
+    ? info.value.toString(16).toUpperCase().padStart(8, "0")
     : "";
 
   var body: ReactNode = "";
-  if (props.info) {
+  if (info) {
     switch (props.mode) {
       case 'Disassemble':
-        body = props.info?.instr
-          ? renderPrettyInstr(props.info?.instr)
+        body = info?.instr
+          ? renderPrettyInstr(info?.instr)
           : (<span style={{ color: `var(--muted-foreground)` }}>???</span>);
         break;
       case 'Memory':
-        body = renderNumber(props.info.value);
+        body = renderNumber(info.value);
         break;
     }
   }
 
   return (
-    <p className="MemoryRow">
+    <p className="MemoryRow" style={props.style}>
       <span style={{
         color: `var(--very-muted-foreground)`
       }}>
-        {props.addr.toString(16).toUpperCase().padStart(8, "0")}
+        {addr.toString(16).toUpperCase().padStart(8, "0")}
       </span>
       <Skip />
       <span style={{
