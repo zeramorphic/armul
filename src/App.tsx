@@ -16,6 +16,7 @@ import { Button } from "./components/ui/button";
 import { AppContext } from "./lib/AppContext";
 import { LineInfo } from "./lib/serde-types";
 import * as processor from "./lib/processor";
+import Status from "./components/my/Status";
 
 var modelJson: IJsonModel = {
   global: {
@@ -28,17 +29,34 @@ var modelJson: IJsonModel = {
     weight: 100,
     children: [
       {
-        type: "tabset",
-        enableSingleTabStretch: true,
-        enableClose: false,
+        type: "row",
         weight: 20,
         children: [
           {
-            type: "tab",
-            enableClose: false,
-            name: "Registers",
-            component: "registers",
-          }
+            type: "tabset",
+            enableTabStrip: false,
+            weight: 30,
+            children: [
+              {
+                type: "tab",
+                enableClose: false,
+                name: "Status",
+                component: "status",
+              }
+            ],
+          },
+          {
+            type: "tabset",
+            weight: 70,
+            children: [
+              {
+                type: "tab",
+                enableClose: false,
+                name: "Registers",
+                component: "registers",
+              }
+            ]
+          },
         ]
       },
       {
@@ -47,7 +65,6 @@ var modelJson: IJsonModel = {
         children: [
           {
             type: "tabset",
-            enableSingleTabStretch: true,
             weight: 70,
             children: [
               {
@@ -60,7 +77,6 @@ var modelJson: IJsonModel = {
           },
           {
             type: "tabset",
-            enableSingleTabStretch: true,
             weight: 30,
             children: [
               {
@@ -83,6 +99,7 @@ const factory = (node: TabNode) => {
 
   switch (component) {
     case 'placeholder': return <div>{node.getName()}</div>;
+    case 'status': return <Status />;
     case 'registers': return <Registers />;
     case 'disas': return <MemoryView mode={'Disassemble'} />;
     case 'memory': return <MemoryView mode={'Memory'} />;
