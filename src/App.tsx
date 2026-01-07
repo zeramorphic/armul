@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { IJsonModel, Layout, Model, TabNode } from 'flexlayout-react';
 import './flexlayout.css';
 import { useTheme } from "./components/theme-provider";
-import Status from "./components/my/Status";
+import Registers from "./components/my/Registers";
 import Processor from "./lib/processor";
 import { ProcessorContext } from "./lib/ProcessorContext";
 
@@ -31,8 +31,8 @@ var modelJson: IJsonModel = {
           {
             type: "tab",
             enableClose: false,
-            name: "Status",
-            component: "status",
+            name: "Registers",
+            component: "registers",
           }
         ]
       },
@@ -78,7 +78,7 @@ const factory = (node: TabNode) => {
 
   switch (component) {
     case 'placeholder': return <div>{node.getName()}</div>;
-    case 'status': return <Status />;
+    case 'registers': return <Registers />;
     case 'disas': return <MemoryView mode={'Disassemble'} />;
     case 'memory': return <MemoryView mode={'Memory'} />;
   }

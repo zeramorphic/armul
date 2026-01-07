@@ -5,6 +5,7 @@ import { ProcessorContext } from "@/lib/ProcessorContext";
 import { RowComponentProps } from "react-window";
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface MemoryRowProps {
   mode: 'Disassemble' | 'Memory',
@@ -42,7 +43,7 @@ function renderPrettyArgument(arg: PrettyArgument): ReactNode {
     case 'Constant':
       switch (arg.style) {
         case 'Address':
-          return <span>{renderAddress(arg.value)}</span>;
+          return <span>{renderAddress(arg.value, 'addr-faint', 'addr', true)}</span>;
         case 'UnsignedDecimal':
           return <span className="addr">{arg.value}</span>;
         case 'Unknown':
@@ -58,7 +59,7 @@ function renderPrettyArgument(arg: PrettyArgument): ReactNode {
   }
 }
 
-function registerRanges(registers: number[]): string[] {
+export function registerRanges(registers: number[]): string[] {
   var ranges: { start: number, end: number }[] = [];
   for (var i = 0; i < registers.length; i++) {
     if (ranges.length > 0 && ranges[ranges.length - 1].end == registers[i] - 1) {
@@ -70,7 +71,7 @@ function registerRanges(registers: number[]): string[] {
   return ranges.map(({ start, end }) => start == end ? registerToString(start) : registerToString(start) + "-" + registerToString(end));
 }
 
-function registerToString(register: number): string {
+export function registerToString(register: number): string {
   switch (register) {
     case 13: return 'SP';
     case 14: return 'LR';
@@ -89,19 +90,15 @@ function shiftTypeToString(shiftType: ShiftType): string {
   }
 }
 
-function renderAddress(address: number): ReactNode {
+export function renderAddress(address: number, faintClass?: string, boldClass?: string, zeroX?: boolean): ReactNode {
   const str = address.toString(16).toUpperCase();
-  return <><span className="addr-faint">0x{'0'.repeat(8 - str.length)}</span><span className="addr">{str}</span></>;
+  return <><span className={faintClass}>{zeroX ? '0x' : ''}{'0'.repeat(8 - str.length)}</span><span className={boldClass}>{str}</span></>;
 }
 
 export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
   const processor = useContext(ProcessorContext);
   const addr = props.index * 4;
   const info = processor.get_memory(addr);
-
-  const hex = info
-    ? info.value.toString(16).toUpperCase().padStart(8, "0")
-    : "";
 
   var body: ReactNode = "";
   if (info) {
@@ -132,8 +129,8 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
         <TooltipTrigger asChild>
           {badges}
         </TooltipTrigger>
-        <TooltipContent style={{fontFamily: "var(--mono-font)"}}>
-          {regs.map(registerToString).join(", ")}
+        <TooltipContent style={{ fontFamily: "var(--font-mono)" }}>
+          {registerRanges(regs).join(", ")}
         </TooltipContent>
       </Tooltip>;
     }
@@ -141,34 +138,20 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
 
   return <div className="flex flex-row MemoryRow" style={props.style}>
     <div className="flex-none w-[50px]">{badges}</div>
-    <div className="text-(--very-muted-foreground) flex-none w-[80px]">{addr.toString(16).toUpperCase().padStart(8, "0")}</div>
-    <div className="text-(--muted-foreground) flex-none w-[80px]">{hex}</div>
+    <div className="text-(--muted-foreground) flex-none w-[80px]">{renderAddress(addr, "text-(--extremely-muted-foreground)")}</div>
+    <div className={cn(props.mode === "Disassemble" ? "text-(--muted-foreground)" : "", "flex-none w-[80px]")}>{renderAddress(info?.value ?? 0, "text-(--extremely-muted-foreground)")}</div>
     <div className="flex-1">{body}</div>
   </div>;
-
-  // return (
-  //   <p className="MemoryRow" style={props.style}>
-  //     <span style={{
-  //       color: `var(--very-muted-foreground)`
-  //     }}>
-  //       {addr.toString(16).toUpperCase().padStart(8, "0")}
-  //     </span>
-  //     <Skip />
-  //     <span style={{
-  //       color: `var(--muted-foreground)`
-  //     }}>
-  //       {hex}
-  //     </span>
-  //     <Skip />
-  //     <span>{body}</span>
-  //   </p>
-  // )
 }
 
-export function renderNumber(value: number) {
+export function renderNumber(value: number, bracketPositive?: boolean) {
   if (value >= ~(1 << 31)) {
     const start = "-" + (~value + 1);
-    return <span>{start.padStart(11).replace(/ /g, "\u00A0")} <span className="faint">({value})</span></span>;
+    if (bracketPositive) {
+      return <span>{start.padStart(11).replace(/ /g, "\u00A0")} <span className="faint">({value})</span></span>;
+    } else {
+      return <span>{start.padStart(11).replace(/ /g, "\u00A0")}</span>;
+    }
   } else {
     return <span>{value.toString().padStart(11).replace(/ /g, "\u00A0")}</span>;
   }

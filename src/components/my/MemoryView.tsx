@@ -19,7 +19,7 @@ export function MemoryView(props: MemoryViewProps) {
       <div className="text-(--muted-foreground) flex-none w-[50px]">Regs</div>
       <div className="text-(--muted-foreground) flex-none w-[80px]">Address</div>
       <div className="text-(--muted-foreground) flex-none w-[80px]">Hex</div>
-      <div className="text-(--muted-foreground) flex-1">{props.mode === "Disassemble" ? "Disassembly" : "Memory"}</div>
+      <div className="text-(--muted-foreground) flex-1">{props.mode === "Disassemble" ? "Disassembly" : "Decimal"}</div>
     </div>
     <List
       className="mx-2"

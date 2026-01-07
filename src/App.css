@@ -2,9 +2,9 @@
 @import "tw-animate-css";
 
 :root {
-  --body-font: Inter, Avenir, Helvetica, Arial, sans-serif;
-  --mono-font: JuliaMono, 'Courier New', Courier, monospace;
-  font-family: var(--body-font);
+  --font-sans: Inter, Avenir, Helvetica, Arial, sans-serif;
+  --font-mono: JuliaMono, 'Courier New', Courier, monospace;
+  font-family: var(--font-sans);
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
@@ -93,6 +93,7 @@ body,
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --very-muted-foreground: oklch(0.756 0 0);
+  --extremely-muted-foreground: oklch(0.820 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -136,6 +137,7 @@ body,
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --very-muted-foreground: oklch(0.600 0 0);
+  --extremely-muted-foreground: oklch(0.500 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);

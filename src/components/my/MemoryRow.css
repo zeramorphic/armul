@@ -1,7 +1,5 @@
 .MemoryRow {
-    padding: 0;
-    padding-right: 1em;
-    font-family: var(--mono-font);
+    font-family: var(--font-mono);
     font-size: var(--text-xs);
     height: 16px;
     width: fit-content;
