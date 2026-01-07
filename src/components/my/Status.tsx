@@ -7,6 +7,7 @@ import { useContext } from 'react';
 import { ProcessorContext } from '@/lib/ProcessorContext';
 import Processor from '@/lib/processor';
 import { invoke } from '@tauri-apps/api/core';
+import { useHotkeys } from 'react-hotkeys-hook';
 
 interface StatusProps {
 };
@@ -22,6 +23,8 @@ async function stepOnce(processor: Processor) {
 
 export default function Status(props: StatusProps) {
   const processor = useContext(ProcessorContext);
+
+  useHotkeys('f2', () => stepOnce(processor));
 
   const transport = <ButtonGroup>
     <Button variant="outline"><PlayIcon /></Button>

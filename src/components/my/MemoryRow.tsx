@@ -3,14 +3,11 @@ import "./MemoryRow.css"
 import { PrettyArgument, PrettyInstr, ShiftType } from "@/lib/serde-types";
 import { ProcessorContext } from "@/lib/ProcessorContext";
 import { RowComponentProps } from "react-window";
+import { Badge } from "../ui/badge";
 
 interface MemoryRowProps {
   mode: 'Disassemble' | 'Memory',
 };
-
-function Skip() {
-  return (<span style={{ paddingRight: `10pt` }}></span>);
-}
 
 function renderPrettyInstr(pretty: PrettyInstr): ReactNode {
   return (<span>
@@ -119,23 +116,42 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
     }
   }
 
-  return (
-    <p className="MemoryRow" style={props.style}>
-      <span style={{
-        color: `var(--very-muted-foreground)`
-      }}>
-        {addr.toString(16).toUpperCase().padStart(8, "0")}
-      </span>
-      <Skip />
-      <span style={{
-        color: `var(--muted-foreground)`
-      }}>
-        {hex}
-      </span>
-      <Skip />
-      <span>{body}</span>
-    </p>
-  )
+  const regs = [...Array(16).keys()].filter(ix => processor.registers.regs[ix] === addr);
+  let badges;
+  if (regs.length !== 0) {
+    let className = "badge-reg";
+    switch (regs[0]) {
+      case 13: className = "badge-reg-sp"; break;
+      case 14: className = "badge-reg-lr"; break;
+      case 15: className = "badge-reg-pc"; break;
+    }
+    badges = <Badge className={`rounded-full ${className}`}>{registerToString(regs[0])}{regs.length === 1 ? "" : "+"}</Badge>;
+  }
+
+  return <div className="flex flex-row MemoryRow" style={props.style}>
+    <div className="flex-none w-[50px]">{badges}</div>
+    <div className="text-(--very-muted-foreground) flex-none w-[80px]">{addr.toString(16).toUpperCase().padStart(8, "0")}</div>
+    <div className="text-(--muted-foreground) flex-none w-[80px]">{hex}</div>
+    <div className="flex-1">{body}</div>
+  </div>;
+
+  // return (
+  //   <p className="MemoryRow" style={props.style}>
+  //     <span style={{
+  //       color: `var(--very-muted-foreground)`
+  //     }}>
+  //       {addr.toString(16).toUpperCase().padStart(8, "0")}
+  //     </span>
+  //     <Skip />
+  //     <span style={{
+  //       color: `var(--muted-foreground)`
+  //     }}>
+  //       {hex}
+  //     </span>
+  //     <Skip />
+  //     <span>{body}</span>
+  //   </p>
+  // )
 }
 
 export function renderNumber(value: number) {

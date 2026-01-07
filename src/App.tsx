@@ -83,7 +83,6 @@ const factory = (node: TabNode) => {
     case 'memory': return <MemoryView mode={'Memory'} />;
   }
 };
-const layout = <Layout model={model} factory={factory} supportsPopout={true} />;
 
 function App() {
   const [processor, setProcessor] = useState<Processor>(new Processor(() => setProcessor(proc => proc.repack())));
@@ -113,7 +112,7 @@ function App() {
 
         <div className={'mainbody row ' + (theme.theme === 'light' ? "flexlayout__theme_light" : "flexlayout__theme_dark")}>
           <ProcessorContext value={processor}>
-            {layout}
+            <Layout model={model} factory={factory} realtimeResize={true} />
           </ProcessorContext>
         </div>
       </main>

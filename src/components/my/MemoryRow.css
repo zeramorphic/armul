@@ -7,3 +7,33 @@
     width: fit-content;
     text-wrap-mode: nowrap;
 }
+
+:root {
+    --register: oklch(0.63 0.13 25);
+    --register-sp: oklch(0.63 0.13 160);
+    --register-lr: oklch(0.63 0.13 290);
+    --register-pc: oklch(0.63 0.13 225);
+}
+
+.dark {
+    --register: oklch(0.55 0.15 25);
+    --register-sp: oklch(0.55 0.15 160);
+    --register-lr: oklch(0.55 0.15 290);
+    --register-pc: oklch(0.55 0.15 225);
+}
+
+.badge-reg {
+    background-color: var(--register) !important;
+}
+
+.badge-reg-sp {
+    background-color: var(--register-sp) !important;
+}
+
+.badge-reg-lr {
+    background-color: var(--register-lr) !important;
+}
+
+.badge-reg-pc {
+    background-color: var(--register-pc) !important;
+}
