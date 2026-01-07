@@ -116,8 +116,10 @@ pub struct Registers {
 impl Default for Registers {
     fn default() -> Self {
         let mut this = Self { regs: [0; 37] };
-        // Set supervisor mode with IRQ disabled.
-        *this.cpsr_mut() = 0b10010011;
+        // GBA tests expect us to have set supervisor mode with IRQ disabled.
+        // *this.cpsr_mut() = 0b10010011;
+        // But we actually want to default to user mode for convenience in the GUI.
+        *this.cpsr_mut() = 0b10010000;
         this
     }
 }
