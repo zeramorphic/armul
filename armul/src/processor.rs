@@ -1138,7 +1138,7 @@ pub type ProcessorResult = Result<(), ProcessorError>;
 
 /// The type of possible errors that can be encountered
 /// while executing an instruction.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ProcessorError {
     /// The program counter was not 4-byte aligned.
     UnalignedPc,

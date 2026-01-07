@@ -126,7 +126,8 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
       case 14: className = "badge-reg-lr"; break;
       case 15: className = "badge-reg-pc"; break;
     }
-    badges = <Badge className={`rounded-full ${className}`}>{registerToString(regs[0])}{regs.length === 1 ? "" : "+"}</Badge>;
+    const content = registerToString(regs[0]) + (regs.length === 1 ? "" : "+");
+    badges = <Badge className={`rounded-full ${className}`}>{content}</Badge>;
     if (regs.length > 1) {
       badges = <Tooltip>
         <TooltipTrigger asChild>
@@ -137,6 +138,15 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
         </TooltipContent>
       </Tooltip>;
     }
+  } else if (processor.info.previous_pc === addr && processor.info.previous_pc + 4 !== processor.registers.regs[15]) {
+    badges = <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge className="rounded-full badge-reg-prev-pc">Src</Badge>
+      </TooltipTrigger>
+      <TooltipContent>
+        This marker shows where the program counter was immediately before it moved.
+      </TooltipContent>
+    </Tooltip>;
   }
 
   return <div className="flex flex-row MemoryRow" style={props.style}>

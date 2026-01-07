@@ -10,17 +10,41 @@ import { AppDispatch } from "@/App";
  */
 export interface Processor {
     /** Nulls mean that we're waiting to receive the value. */
-    memory: Map<number, LineInfo | null>;
-    registers: Registers;
+    memory: Map<number, LineInfo | null>,
+    registers: Registers,
+    info: ProcessorInformation,
 };
 
+type ProcessorState = 'Running' | 'Stopped';
+
+interface ProcessorInformation {
+    file: string,
+    state: ProcessorState,
+    previous_pc: number,
+
+    steps: number,
+    nonseq_cycles: number,
+    seq_cycles: number,
+    internal_cycles: number,
+}
+
 export function newProcessor(): Processor {
-    return { memory: new Map(), registers: { regs: Array(37).fill(0) } };
+    return {
+        memory: new Map(),
+        registers: { regs: Array(37).fill(0) },
+        info: {
+            file: 'unknown',
+            state: 'Stopped',
+            previous_pc: 0,
+            steps: 0, nonseq_cycles: 0, seq_cycles: 0, internal_cycles: 0,
+        }
+    };
 }
 
 /** Get back in sync with the backend using Tauri calls. */
 export async function resynchronise(processor: Processor): Promise<Processor> {
     const registers: Registers = await invoke('registers');
+    const info: ProcessorInformation = await invoke('processor_info');
     // For now, update all memory addresses we've ever seen.
     const entries = await Promise.all([...processor.memory.keys()]
         .map(addr => fetch_memory(addr).then((mem) => ({ addr, mem }))));
@@ -28,7 +52,7 @@ export async function resynchronise(processor: Processor): Promise<Processor> {
     for (const { addr, mem } of entries) {
         memory.set(addr, mem);
     }
-    return { registers, memory }
+    return { registers, memory, info }
 }
 
 /**

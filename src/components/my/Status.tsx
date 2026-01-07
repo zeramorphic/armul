@@ -9,6 +9,7 @@ import { AppContext } from "@/lib/AppContext";
 import { AppDispatch } from "@/App";
 import { Processor, resynchronise } from "@/lib/processor";
 import { invoke } from "@tauri-apps/api/core";
+import { Separator } from "../ui/separator";
 
 async function stepOnce(processor: Processor, dispatch: AppDispatch) {
   await invoke('step_once');
@@ -39,14 +40,38 @@ export default function Status() {
     </div>
     <div className="text-sm px-2">
       <div className="flex">
-        <div>Status</div>
+        <div>File</div>
         <div className="flex-1"></div>
-        <div>[Processor status]</div>
+        <div>{processor.info.file}</div>
       </div>
       <div className="flex">
-        <div>Cycles</div>
+        <div>Status</div>
         <div className="flex-1"></div>
-        <div>[Total cycles]</div>
+        <div>{processor.info.state}</div>
+      </div>
+      <div className="flex">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>Steps &#9432;</div>
+          </TooltipTrigger>
+          <TooltipContent>
+            Counts the number of instructions that have been executed.
+          </TooltipContent>
+        </Tooltip>
+        <div className="flex-1"></div>
+        <div className="font-mono">{processor.info.steps}</div>
+      </div>
+      <div className="flex">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div>Processor time &#9432;</div>
+          </TooltipTrigger>
+          <TooltipContent>
+            An estimation of the amount of time it would have taken to run this program on a real ARM7TDMI chip.
+          </TooltipContent>
+        </Tooltip>
+        <div className="flex-1"></div>
+        <div className="font-mono">~{((processor.info.nonseq_cycles * 2 + processor.info.seq_cycles + processor.info.internal_cycles) / 100).toFixed(2)}&micro;s</div>
       </div>
     </div>
   </div>;

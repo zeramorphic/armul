@@ -11,6 +11,7 @@
     --register-sp: oklch(0.63 0.13 160);
     --register-lr: oklch(0.63 0.13 290);
     --register-pc: oklch(0.63 0.13 225);
+    --register-prev-pc: oklch(0.63 0.13 225);
 }
 
 .dark {
@@ -18,6 +19,7 @@
     --register-sp: oklch(0.55 0.15 160);
     --register-lr: oklch(0.55 0.15 290);
     --register-pc: oklch(0.55 0.15 225);
+    --register-prev-pc: oklch(0.55 0.15 225);
 }
 
 .badge-reg {
@@ -34,4 +36,11 @@
 
 .badge-reg-pc {
     background-color: var(--register-pc) !important;
+}
+
+.badge-reg-prev-pc {
+    border-color: var(--register-pc) !important;
+    border: 2px dotted;
+    background-color: var(--muted) !important;
+    color: var(--muted-foreground) !important;
 }

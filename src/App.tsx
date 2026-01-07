@@ -150,7 +150,7 @@ interface OpenFileResolve {
 export function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, file: File) {
   const loadProgram = async () => {
     const contents = await file.text();
-    await invoke("load_program", { contents });
+    await invoke("load_program", { file: file.name, contents });
     const newProcessor = await processor.resynchronise(proc);
     dispatch({ type: "open_file_resolve", file, newProcessor });
   };
