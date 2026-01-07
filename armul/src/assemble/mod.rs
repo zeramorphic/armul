@@ -1,11 +1,10 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display};
 
 mod assembler;
 mod parser;
 mod syntax;
 
 use assembler::HealStrategy;
-use serde::Serialize;
 
 #[derive(Debug)]
 pub struct AssemblerOutput {
@@ -15,32 +14,43 @@ pub struct AssemblerOutput {
     pub passes: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct AssemblerError {
     pub line_number: usize,
     pub error: LineError,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub enum LineError {
     ParseError(String),
-    ExpectedRegister(String),
-    UnrecognisedOpcode(String),
-    ExpectedMnemonic(String),
-    UnrecognisedAtEnd(String),
-    ExpectedNumber(String),
-    AboveRadix,
-    ExpectedShift(String),
     LabelNotFound(String),
     ShiftOutOfRange,
     MisalignedBranchOffset,
     OffsetOutOfRange,
     ImmediateOutOfRange(u32),
     InvalidShiftType,
-    InvalidPsr,
     InvalidStoreSize,
     AddressTooComplex,
     TooManyPasses,
+}
+
+impl Display for LineError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LineError::ParseError(s) => write!(f, "{s}"),
+            LineError::LabelNotFound(label) => write!(f, "label '{label}' not found"),
+            LineError::ShiftOutOfRange => write!(f, "shift out of range"),
+            LineError::MisalignedBranchOffset => write!(f, "branch offset was not 4-byte aligned"),
+            LineError::OffsetOutOfRange => write!(f, "offset out of range"),
+            LineError::ImmediateOutOfRange(n) => write!(f, "value {n} out of range"),
+            LineError::InvalidShiftType => write!(f, "invalid shift type"),
+            LineError::InvalidStoreSize => write!(f, "invalid store size"),
+            LineError::AddressTooComplex => write!(f, "address too complex for this instruction"),
+            LineError::TooManyPasses => {
+                write!(f, "too many passes were needed to assemble; aborting")
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

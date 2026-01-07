@@ -1,4 +1,4 @@
-import { RefObject, useRef, useState } from "react";
+import { ReactNode, RefObject, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import { Menu } from "./components/my/Menu";
@@ -17,6 +17,7 @@ import { AppContext } from "./lib/AppContext";
 import { LineInfo } from "./lib/serde-types";
 import * as processor from "./lib/processor";
 import Status from "./components/my/Status";
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./components/ui/alert-dialog";
 
 var modelJson: IJsonModel = {
   global: {
@@ -147,27 +148,41 @@ interface OpenFileResolve {
   newProcessor: processor.Processor,
 }
 
-export function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, file: File) {
+export function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, file: File, errorDialog: (contents: ReactNode) => void) {
   const loadProgram = async () => {
     const contents = await file.text();
     await invoke("load_program", { file: file.name, contents });
     const newProcessor = await processor.resynchronise(proc);
     dispatch({ type: "open_file_resolve", file, newProcessor });
   };
-  toast.promise(loadProgram().catch(err => {
-    console.error("Couldn't load", file, err);
-    throw err
+  toast.promise(loadProgram().catch((errs: { line_number: number, error: string }[]) => {
+    errorDialog(<>
+      <AlertDialogHeader>
+        <AlertDialogTitle>
+          Could not load {file.name}
+        </AlertDialogTitle>
+        <AlertDialogDescription className="text-sm">
+          {errs.map(({ line_number, error }) => <div>
+            Line {line_number}: {error}
+          </div>)}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Ok</AlertDialogCancel>
+      </AlertDialogFooter>
+    </>);
+    throw errs
   }), {
     loading: "Loading " + file.name + "...",
-    success: "Loaded " + file.name + ".",
-    error: "Could not load " + file.name + "."
+    success: "Loaded " + file.name + "."
   });
 }
 
 function performAction(
   appState: AppState,
   action: AppAction,
-  openFileInput: RefObject<HTMLInputElement | null>): AppState {
+  openFileInput: RefObject<HTMLInputElement | null>,
+): AppState {
   switch (action.type) {
     case "processor_read":
       const memory = new Map(appState.processor.memory);
@@ -193,7 +208,11 @@ function performAction(
 function App() {
   const [state, setState] = useState(newAppState());
   const theme = useTheme();
+
   const openFileInput = useRef<HTMLInputElement>(null);
+
+  const [alertOpen, alertSetOpen] = useState(false);
+  const [alertContents, alertSetContents] = useState<ReactNode>();
 
   // A callback to execute the given action.
   const dispatch: AppDispatch = (action: AppAction) => setState(appState => performAction(appState, action, openFileInput));
@@ -221,9 +240,17 @@ function App() {
       {/* TODO: The `accept` attribute isn't working as intended. */}
       <input type="file" style={{ "display": "none" }} ref={openFileInput} accept=".s," onChange={event => {
         if (event.target.files?.length === 1) {
-          performOpenFile(state.processor, dispatch, event.target.files[0]);
+          performOpenFile(state.processor, dispatch, event.target.files[0], (err) => {
+            alertSetOpen(true);
+            alertSetContents(err);
+          });
         }
       }} />
+      <AlertDialog open={alertOpen} onOpenChange={alertSetOpen}>
+        <AlertDialogContent>
+          {alertContents}
+        </AlertDialogContent>
+      </AlertDialog>
       <AppContext value={dispatch}>
         <ProcessorContext value={state.processor}>
           <main className="container">

@@ -69,7 +69,7 @@ pub fn parse(src: &str) -> Result<Vec<AsmLine>, Vec<AssemblerError>> {
 enum Token<'a> {
     Error(LexError),
 
-    #[regex(r"[a-zA-Z][a-zA-Z0-9_]*")]
+    #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*")]
     Name(&'a str),
 
     Register(Register),

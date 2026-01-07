@@ -19,13 +19,26 @@ struct MyState {
 #[derive(Default)]
 struct MyStateLock(RwLock<MyState>);
 
+#[derive(Serialize)]
+struct PrettyAssemblerError {
+    line_number: usize,
+    error: String,
+}
+
 #[tauri::command]
 async fn load_program(
     state: tauri::State<'_, MyStateLock>,
     file: &str,
     contents: &str,
-) -> Result<(), Vec<AssemblerError>> {
-    let assembled = assemble(contents)?;
+) -> Result<(), Vec<PrettyAssemblerError>> {
+    let assembled = assemble(contents).map_err(|errs| {
+        errs.into_iter()
+            .map(|err| PrettyAssemblerError {
+                line_number: err.line_number,
+                error: err.error.to_string(),
+            })
+            .collect::<Vec<_>>()
+    })?;
     let mut new_processor = Processor::default();
     new_processor
         .memory_mut()
