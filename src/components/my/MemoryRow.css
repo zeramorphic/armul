@@ -1,7 +1,7 @@
 .MemoryRow {
     padding: 0;
     padding-right: 1em;
-    font-family: JuliaMono, 'Courier New', Courier, monospace;
+    font-family: var(--mono-font);
     font-size: var(--text-xs);
     height: 16px;
     width: fit-content;

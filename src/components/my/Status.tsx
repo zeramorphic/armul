@@ -8,6 +8,7 @@ import { ProcessorContext } from '@/lib/ProcessorContext';
 import Processor from '@/lib/processor';
 import { invoke } from '@tauri-apps/api/core';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 interface StatusProps {
 };
@@ -28,7 +29,14 @@ export default function Status(props: StatusProps) {
 
   const transport = <ButtonGroup>
     <Button variant="outline"><PlayIcon /></Button>
-    <Button variant="outline" onClick={() => stepOnce(processor)}><StepForwardIcon /></Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="outline" onClick={() => stepOnce(processor)}><StepForwardIcon /></Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        Step Once&emsp;<span className="text-muted-foreground tracking-widest ml-auto">F2</span>
+      </TooltipContent>
+    </Tooltip>
     <Button variant="outline"><RefreshCwIcon /></Button>
   </ButtonGroup>;
 

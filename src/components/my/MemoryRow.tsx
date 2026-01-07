@@ -4,6 +4,7 @@ import { PrettyArgument, PrettyInstr, ShiftType } from "@/lib/serde-types";
 import { ProcessorContext } from "@/lib/ProcessorContext";
 import { RowComponentProps } from "react-window";
 import { Badge } from "../ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 interface MemoryRowProps {
   mode: 'Disassemble' | 'Memory',
@@ -126,6 +127,16 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
       case 15: className = "badge-reg-pc"; break;
     }
     badges = <Badge className={`rounded-full ${className}`}>{registerToString(regs[0])}{regs.length === 1 ? "" : "+"}</Badge>;
+    if (regs.length > 1) {
+      badges = <Tooltip>
+        <TooltipTrigger asChild>
+          {badges}
+        </TooltipTrigger>
+        <TooltipContent style={{fontFamily: "var(--mono-font)"}}>
+          {regs.map(registerToString).join(", ")}
+        </TooltipContent>
+      </Tooltip>;
+    }
   }
 
   return <div className="flex flex-row MemoryRow" style={props.style}>
