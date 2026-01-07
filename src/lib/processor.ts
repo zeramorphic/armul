@@ -11,6 +11,10 @@ import { AppDispatch } from "@/App";
 export interface Processor {
     /** Nulls mean that we're waiting to receive the value. */
     memory: Map<number, LineInfo | null>,
+    /** The ranges of memory that is currently on screen for the disassembly view. */
+    visible_memory_disas: { start: number, end: number },
+    /** The ranges of memory that is currently on screen for the memory view. */
+    visible_memory_memory: { start: number, end: number },
     registers: Registers,
     info: ProcessorInformation,
 };
@@ -32,6 +36,8 @@ export function newProcessor(): Processor {
     return {
         memory: new Map(),
         registers: { regs: Array(37).fill(0) },
+        visible_memory_disas: { start: 0, end: 0 },
+        visible_memory_memory: { start: 0, end: 0 },
         info: {
             file: 'unknown',
             state: 'Stopped',
@@ -45,14 +51,19 @@ export function newProcessor(): Processor {
 export async function resynchronise(processor: Processor): Promise<Processor> {
     const registers: Registers = await invoke('registers');
     const info: ProcessorInformation = await invoke('processor_info');
-    // For now, update all memory addresses we've ever seen.
-    const entries = await Promise.all([...processor.memory.keys()]
-        .map(addr => fetch_memory(addr).then((mem) => ({ addr, mem }))));
+    const keys = [];
+    for (var i = processor.visible_memory_disas.start; i < processor.visible_memory_disas.end; i += 4) {
+        keys.push(i);
+    }
+    for (var i = processor.visible_memory_memory.start; i < processor.visible_memory_memory.end; i += 4) {
+        keys.push(i);
+    }
+    const entries = await Promise.all(keys.map(addr => fetch_memory(addr).then((mem) => ({ addr, mem }))));
     const memory = new Map();
     for (const { addr, mem } of entries) {
         memory.set(addr, mem);
     }
-    return { registers, memory, info }
+    return { registers, visible_memory_disas: processor.visible_memory_disas, visible_memory_memory: processor.visible_memory_memory, memory, info }
 }
 
 /**
