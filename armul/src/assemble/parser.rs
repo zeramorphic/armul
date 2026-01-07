@@ -556,11 +556,8 @@ where
     let label = select! { Token::Name(label) => label };
     let mnemonic = select! { Token::Opcode(mnemonic) => mnemonic };
     let args = argument()
-        .separated_by(
-            whitespace()
-                .then_ignore(just(Token::Comma))
-                .then_ignore(whitespace()),
-        )
+        .padded_by(whitespace())
+        .separated_by(just(Token::Comma))
         .collect::<Vec<_>>();
 
     label

@@ -9,7 +9,6 @@ import { AppContext } from "@/lib/AppContext";
 import { AppDispatch } from "@/App";
 import { Processor, resynchronise } from "@/lib/processor";
 import { invoke } from "@tauri-apps/api/core";
-import { Separator } from "../ui/separator";
 
 async function stepOnce(processor: Processor, dispatch: AppDispatch) {
   await invoke('step_once');

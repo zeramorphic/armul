@@ -1,0 +1,10 @@
+[package]
+name = "armul-cli"
+version = "0.1.0"
+edition = "2024"
+description = "ARMUL: ARM7 emulator"
+
+[dependencies]
+anyhow = "1.0.100"
+armul = { version = "0.1.0", path = "../armul" }
+clap = { version = "4.5.54", features = ["derive"] }
