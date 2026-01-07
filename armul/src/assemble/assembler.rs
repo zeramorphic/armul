@@ -1,6 +1,6 @@
 //! Assembles parsed assembly into real 32-bit instructions.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, btree_map::Entry};
 
 use crate::{
     assemble::{
@@ -46,11 +46,13 @@ pub fn assemble(
         instrs: Vec::new(),
         warnings: Vec::new(),
         passes: 0,
+        comments: BTreeMap::new(),
     };
     let mut i = 0;
     loop {
-        output.instrs = Vec::new();
-        output.warnings = Vec::new();
+        output.instrs.clear();
+        output.warnings.clear();
+        output.comments.clear();
         output.passes += 1;
         if !single_pass(&lines, heal, &mut output)? {
             break;
@@ -76,6 +78,17 @@ fn single_pass(
     let mut program_counter = 0u32;
     let mut anything_changed = false;
     for line in lines {
+        if !line.comment.is_empty() {
+            match output.comments.entry(program_counter) {
+                Entry::Vacant(vacant_entry) => {
+                    vacant_entry.insert(line.comment.clone());
+                }
+                Entry::Occupied(mut occupied_entry) => {
+                    occupied_entry.get_mut().push_str(". ");
+                    occupied_entry.get_mut().push_str(&line.comment);
+                }
+            }
+        }
         match &line.contents {
             AsmLineContents::Empty => {}
             AsmLineContents::Label(label) => {

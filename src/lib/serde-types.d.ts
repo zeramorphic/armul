@@ -1,6 +1,7 @@
 export interface LineInfo {
     value: number,
     instr?: PrettyInstr,
+    comment?: string,
 };
 
 interface PrettyInstr {

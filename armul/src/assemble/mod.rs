@@ -11,6 +11,7 @@ pub struct AssemblerOutput {
     pub labels: BTreeMap<String, u32>,
     pub instrs: Vec<u32>,
     pub warnings: Vec<AssemblerWarning>,
+    pub comments: BTreeMap<u32, String>,
     pub passes: usize,
 }
 

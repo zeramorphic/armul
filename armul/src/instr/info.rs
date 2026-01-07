@@ -15,23 +15,19 @@ pub struct LineInfo {
     value: u32,
     /// The decoded instruction, if there was one.
     instr: Option<PrettyInstr>,
+    /// The comment, if there was one.
+    comment: Option<String>,
 }
 
 impl LineInfo {
     /// Generate the line info for the given value, given the symbol table information in the assembler output.
-    pub fn new(
-        address: u32,
-        value: u32,
-        assembled: Option<&AssemblerOutput>,
-        disassemble: bool,
-    ) -> Self {
+    pub fn new(address: u32, value: u32, assembled: Option<&AssemblerOutput>) -> Self {
         LineInfo {
             value,
-            instr: if disassemble {
-                Instr::decode(value).map(|(cond, instr)| PrettyInstr::new(address, cond, instr))
-            } else {
-                None
-            },
+            instr: Instr::decode(value).map(|(cond, instr)| PrettyInstr::new(address, cond, instr)),
+            comment: assembled
+                .and_then(|assembled| assembled.comments.get(&address))
+                .cloned(),
         }
     }
 }

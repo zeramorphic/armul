@@ -45,18 +45,18 @@ async fn load_program(
         .set_words_aligned(0, &assembled.instrs);
     let mut state = state.0.write();
     state.processor = new_processor;
+    state.assembled = Some(assembled);
     state.info = ProcessorInformation::new(file.to_owned());
     Ok(())
 }
 
 #[tauri::command]
-fn line_at(state: tauri::State<'_, MyStateLock>, addr: u32, disassemble: bool) -> LineInfo {
+fn line_at(state: tauri::State<'_, MyStateLock>, addr: u32) -> LineInfo {
     let state = state.0.read();
     LineInfo::new(
         addr,
         state.processor.memory().get_word_aligned(addr),
         state.assembled.as_ref(),
-        disassemble,
     )
 }
 

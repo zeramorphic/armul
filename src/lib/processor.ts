@@ -92,5 +92,5 @@ export function get_memory(processor: Processor, addr: number, dispatch: AppDisp
  * Fetch the value of the given memory address.
  */
 export async function fetch_memory(addr: number): Promise<LineInfo> {
-    return await invoke('line_at', { addr, disassemble: true });
+    return await invoke('line_at', { addr });
 }
