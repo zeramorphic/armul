@@ -6,6 +6,8 @@ import { RowComponentProps } from "react-window";
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "@/lib/utils";
+import { get_memory } from "@/lib/processor";
+import { AppContext } from "@/lib/AppContext";
 
 interface MemoryRowProps {
   mode: 'Disassemble' | 'Memory',
@@ -97,8 +99,9 @@ export function renderAddress(address: number, faintClass?: string, boldClass?: 
 
 export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
   const processor = useContext(ProcessorContext);
+  const dispatch = useContext(AppContext);
   const addr = props.index * 4;
-  const info = processor.get_memory(addr);
+  const info = get_memory(processor, addr, dispatch);
 
   var body: ReactNode = "";
   if (info) {

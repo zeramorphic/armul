@@ -1,4 +1,4 @@
-import Processor from "@/lib/processor";
+import { newProcessor } from "@/lib/processor";
 import { createContext } from "react";
 
-export const ProcessorContext = createContext(new Processor(() => { }));
+export const ProcessorContext = createContext(newProcessor());
