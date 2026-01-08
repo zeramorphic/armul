@@ -3,7 +3,7 @@ use std::path::Path;
 use armul::{
     assemble::{assemble, AssemblerOutput},
     instr::{LineInfo, Register},
-    processor::{Processor, ProcessorError, ProcessorListener, ProcessorState},
+    processor::{Processor, ProcessorListener, ProcessorState},
     registers::Registers,
 };
 use parking_lot::RwLock;
@@ -16,6 +16,7 @@ struct MyState {
     assembled: Option<AssemblerOutput>,
     processor: Processor,
     info: ProcessorInformation,
+    user_input: String,
 }
 
 #[derive(Default)]
@@ -81,6 +82,11 @@ fn registers(state: tauri::State<'_, MyStateLock>) -> Registers {
     state.0.read().processor.registers().clone()
 }
 
+#[tauri::command]
+fn set_user_input(state: tauri::State<'_, MyStateLock>, user_input: String) {
+    state.0.write().user_input = user_input;
+}
+
 #[derive(Clone, Serialize)]
 pub struct ProcessorInformation {
     file: String,
@@ -91,6 +97,10 @@ pub struct ProcessorInformation {
     nonseq_cycles: usize,
     seq_cycles: usize,
     internal_cycles: usize,
+
+    /// This is stupidly inefficient because we're sending the entire output to the TS side
+    /// even when only a single character has changed. But it's good enough for now.
+    output: String,
 }
 
 impl Default for ProcessorInformation {
@@ -109,6 +119,7 @@ impl ProcessorInformation {
             nonseq_cycles: Default::default(),
             seq_cycles: Default::default(),
             internal_cycles: Default::default(),
+            output: Default::default(),
         }
     }
 }
@@ -120,6 +131,8 @@ fn processor_info(state: tauri::State<'_, MyStateLock>) -> ProcessorInformation 
 
 pub struct TauriProcessorListener<'a> {
     info: &'a mut ProcessorInformation,
+    user_input: &'a mut String,
+    input_used: bool,
 }
 
 impl<'a> ProcessorListener for TauriProcessorListener<'a> {
@@ -136,18 +149,42 @@ impl<'a> ProcessorListener for TauriProcessorListener<'a> {
         self.info.nonseq_cycles += 1;
         self.info.seq_cycles += 1;
     }
+
+    fn getc(&mut self) -> Option<char> {
+        if self.user_input.is_empty() {
+            None
+        } else {
+            self.input_used = true;
+            Some(self.user_input.remove(0))
+        }
+    }
+
+    fn putc(&mut self, c: char) {
+        self.info.output.push(c);
+    }
 }
 
+/// Returns the new user input field, if it was changed.
 #[tauri::command]
-fn step_once(state: tauri::State<'_, MyStateLock>) {
+fn step_once(state: tauri::State<'_, MyStateLock>) -> Option<String> {
     let mut guard = state.0.write();
     let state = &mut *guard;
     state.info.previous_pc = state.processor.registers().get(Register::R15);
-    let old_info = state.info.clone();
-    match state.processor.try_execute(&mut TauriProcessorListener {
+
+    // Save some of the old info.
+    let old_n = state.info.nonseq_cycles;
+    let old_s = state.info.seq_cycles;
+    let old_i = state.info.internal_cycles;
+
+    let mut listener = TauriProcessorListener {
         info: &mut state.info,
-    }) {
+        user_input: &mut state.user_input,
+        input_used: false,
+    };
+    let input_used;
+    match state.processor.try_execute(&mut listener) {
         Ok(()) => {
+            input_used = listener.input_used;
             state.info.state = Ok(state.processor.state());
 
             // Advance the program counter and log that we've done a step.
@@ -155,10 +192,19 @@ fn step_once(state: tauri::State<'_, MyStateLock>) {
             *state.processor.registers_mut().get_mut(Register::R15) += 4;
         }
         Err(err) => {
+            input_used = listener.input_used;
             // Reset the old info because we didn't complete a step.
-            state.info = old_info;
+            state.info.nonseq_cycles = old_n;
+            state.info.seq_cycles = old_s;
+            state.info.internal_cycles = old_i;
+
             state.info.state = Err(err.to_string());
         }
+    }
+    if input_used {
+        Some(state.user_input.clone())
+    } else {
+        None
     }
 }
 
@@ -171,6 +217,7 @@ pub fn run() {
             load_program,
             line_at,
             registers,
+            set_user_input,
             step_once,
             processor_info
         ])

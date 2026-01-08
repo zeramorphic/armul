@@ -5,20 +5,23 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { useHotkeys } from "react-hotkeys-hook";
 import { ProcessorContext } from "@/lib/ProcessorContext";
 import { useContext } from "react";
-import { AppContext } from "@/lib/AppContext";
+import { DispatchContext } from "@/lib/DispatchContext";
 import { AppDispatch } from "@/AppAction";
 import { Processor, resynchronise } from "@/lib/processor";
 import { invoke } from "@tauri-apps/api/core";
 
 async function stepOnce(processor: Processor, dispatch: AppDispatch) {
-  await invoke('step_once');
+  const newUserInput: string | undefined = await invoke('step_once');
+  if (newUserInput) {
+    dispatch({ type: "user_input_update", newUserInput })
+  }
   const newProcessor = await resynchronise(processor);
   dispatch({ type: "processor_update", newProcessor })
 }
 
 export default function Status() {
   const processor = useContext(ProcessorContext);
-  const dispatch = useContext(AppContext);
+  const dispatch = useContext(DispatchContext);
   useHotkeys('f2', () => stepOnce(processor, dispatch));
 
   var state;

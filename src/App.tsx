@@ -7,7 +7,7 @@ import { ProcessorContext } from "./lib/ProcessorContext";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from "./components/ui/empty";
 import { Binary } from "lucide-react";
 import { Button } from "./components/ui/button";
-import { AppContext } from "./lib/AppContext";
+import { DispatchContext } from "./lib/DispatchContext";
 import { AlertDialog, AlertDialogContent } from "./components/ui/alert-dialog";
 import TabLayout from "./components/my/TabLayout";
 import { AppAction, AppDispatch, newAppState, performAction } from "./AppAction";
@@ -64,7 +64,7 @@ export default function App() {
           {alertContents}
         </AlertDialogContent>
       </AlertDialog>
-      <AppContext value={dispatch}>
+      <DispatchContext value={dispatch}>
         <ProcessorContext value={state.processor}>
           <main className="container">
             <div className="row">
@@ -77,7 +77,7 @@ export default function App() {
           </main>
           <Toaster />
         </ProcessorContext>
-      </AppContext>
+      </DispatchContext>
     </>
   );
 }

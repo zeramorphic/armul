@@ -17,7 +17,6 @@ export interface Processor {
     visible_memory_memory: { start: number, end: number },
     registers: Registers,
     info: ProcessorInformation,
-    program_output: string,
 };
 
 type ProcessorState = { 'Ok': 'Running' | 'Stopped' } | { 'Err': string };
@@ -31,6 +30,8 @@ interface ProcessorInformation {
     nonseq_cycles: number,
     seq_cycles: number,
     internal_cycles: number,
+
+    output: string,
 }
 
 export function newProcessor(): Processor {
@@ -44,8 +45,8 @@ export function newProcessor(): Processor {
             state: { 'Ok': 'Stopped' },
             previous_pc: 0,
             steps: 0, nonseq_cycles: 0, seq_cycles: 0, internal_cycles: 0,
+            output: "",
         },
-        program_output: "",
     };
 }
 
@@ -65,7 +66,7 @@ export async function resynchronise(processor: Processor): Promise<Processor> {
     for (const { addr, mem } of entries) {
         memory.set(addr, mem);
     }
-    return { registers, visible_memory_disas: processor.visible_memory_disas, visible_memory_memory: processor.visible_memory_memory, memory, info, program_output: processor.program_output }
+    return { registers, visible_memory_disas: processor.visible_memory_disas, visible_memory_memory: processor.visible_memory_memory, memory, info }
 }
 
 /**

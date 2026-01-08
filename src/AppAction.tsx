@@ -10,16 +10,18 @@ import { path } from "@tauri-apps/api";
 export interface AppState {
   processor: processor.Processor,
   ready: boolean,
+  setUserInput: (userInput: string) => void;
 };
 
 export function newAppState(): AppState {
   return {
     processor: processor.newProcessor(),
     ready: false,
+    setUserInput(_) { }
   }
 }
 
-export type AppAction = ProcessorRead | ProcessorUpdate | OpenFile | OpenFileResolve;
+export type AppAction = ProcessorRead | ProcessorUpdate | OpenFile | OpenFileResolve | UserInputUpdate | SetUserInputCallback;
 
 export type AppDispatch = (action: AppAction) => void;
 
@@ -46,6 +48,16 @@ interface OpenFile {
 interface OpenFileResolve {
   type: "open_file_resolve",
   newProcessor: processor.Processor,
+}
+
+interface UserInputUpdate {
+  type: "user_input_update",
+  newUserInput: string,
+}
+
+interface SetUserInputCallback {
+  type: "set_user_input_callback",
+  callback: (userInput: string) => void,
 }
 
 async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, errorDialog: (contents: ReactNode) => void) {
@@ -88,6 +100,7 @@ export function performAction(
   action: AppAction,
   errorDialog: (contents: ReactNode) => void,
 ): AppState {
+  console.log("Dispatching", action.type);
   switch (action.type) {
     case "processor_read":
       const memory = new Map(appState.processor.memory);
@@ -107,5 +120,15 @@ export function performAction(
         ready: true,
         processor: action.newProcessor,
       };
+    case "user_input_update":
+      appState.setUserInput(action.newUserInput);
+      return {
+        ...appState,
+      }
+    case "set_user_input_callback":
+      return {
+        ...appState,
+        setUserInput: action.callback,
+      }
   }
 }

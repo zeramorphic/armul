@@ -11,7 +11,7 @@ import "./Menu.css";
 import { useContext } from "react"
 import { useHotkeys } from 'react-hotkeys-hook'
 import { ThemeProviderState, useTheme } from "../theme-provider";
-import { AppContext } from "@/lib/AppContext";
+import { DispatchContext } from "@/lib/DispatchContext";
 
 function toggleDarkMode(themeProvider: ThemeProviderState) {
   if (themeProvider.theme == 'dark') {
@@ -23,7 +23,7 @@ function toggleDarkMode(themeProvider: ThemeProviderState) {
 
 export function Menu() {
   const themeProvider = useTheme();
-  const dispatch = useContext(AppContext);
+  const dispatch = useContext(DispatchContext);
 
   useHotkeys('ctrl+o', () => dispatch({ type: "open_file", dispatch }));
   useHotkeys('ctrl+k', () => toggleDarkMode(themeProvider));

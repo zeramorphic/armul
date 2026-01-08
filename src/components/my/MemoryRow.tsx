@@ -7,7 +7,7 @@ import { Badge } from "../ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "@/lib/utils";
 import { get_memory } from "@/lib/processor";
-import { AppContext } from "@/lib/AppContext";
+import { DispatchContext } from "@/lib/DispatchContext";
 
 interface MemoryRowProps {
   mode: 'Disassemble' | 'Memory',
@@ -104,7 +104,7 @@ export function renderAddress(address: number, faintClass?: string, boldClass?: 
 
 export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
   const processor = useContext(ProcessorContext);
-  const dispatch = useContext(AppContext);
+  const dispatch = useContext(DispatchContext);
   const addr = props.index * 4;
   const info = get_memory(processor, addr, dispatch);
 
