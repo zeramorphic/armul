@@ -1,4 +1,4 @@
-import { ReactNode, useContext } from "react";
+import { ReactNode, Ref, useContext, useRef, useState } from "react";
 import "./MemoryRow.css"
 import { PrettyArgument, PrettyInstr, ShiftType } from "@/lib/serde-types";
 import { ProcessorContext } from "@/lib/ProcessorContext";
@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "@/lib/utils";
 import { get_memory } from "@/lib/processor";
 import { DispatchContext } from "@/lib/DispatchContext";
+import Octagon from "./BreakpointSymbol";
 
 interface MemoryRowProps {
   mode: 'Disassemble' | 'Memory',
@@ -122,6 +123,15 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
     }
   }
 
+  const breakpointSet = processor.breakpoints.has(addr);
+  const breakpoint = <div
+    role="checkbox"
+    aria-checked={breakpointSet}
+    aria-labelledby="id-group-label"
+    onClick={() => dispatch({ type: "toggle_breakpoint", address: addr })}>
+    <Octagon enabled={breakpointSet} />
+  </div>;
+
   const regs = [...Array(16).keys()].filter(ix => processor.registers.regs[ix] === addr);
   let badges;
   if (regs.length !== 0) {
@@ -155,6 +165,7 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
   }
 
   return <div className="flex flex-row MemoryRow" style={props.style}>
+    {props.mode === 'Disassemble' ? <div className="flex-none w-[24px]">{breakpoint}</div> : <></>}
     <div className="flex-none w-[50px]">{badges}</div>
     <div className="text-(--muted-foreground) flex-none w-[80px]">{renderAddress(addr, "text-(--extremely-muted-foreground)")}</div>
     <div className={cn(props.mode === "Disassemble" ? "text-(--muted-foreground)" : "", "flex-none w-[80px]")}>{renderAddress(info?.value ?? 0, "text-(--extremely-muted-foreground)")}</div>

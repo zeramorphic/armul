@@ -21,7 +21,14 @@ export function newAppState(): AppState {
   }
 }
 
-export type AppAction = ProcessorRead | ProcessorUpdate | OpenFile | OpenFileResolve | UserInputUpdate | SetUserInputCallback;
+export type AppAction
+  = ProcessorRead
+  | ProcessorUpdate
+  | OpenFile
+  | OpenFileResolve
+  | UserInputUpdate
+  | SetUserInputCallback
+  | ToggleBreakpoint;
 
 export type AppDispatch = (action: AppAction) => void;
 
@@ -58,6 +65,11 @@ interface UserInputUpdate {
 interface SetUserInputCallback {
   type: "set_user_input_callback",
   callback: (userInput: string) => void,
+}
+
+interface ToggleBreakpoint {
+  type: "toggle_breakpoint",
+  address: number,
 }
 
 async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, errorDialog: (contents: ReactNode) => void) {
@@ -130,5 +142,13 @@ export function performAction(
         ...appState,
         setUserInput: action.callback,
       }
+    case "toggle_breakpoint":
+      const breakpoints = new Set(appState.processor.breakpoints);
+      if (breakpoints.has(action.address)) {
+        breakpoints.delete(action.address);
+      } else {
+        breakpoints.add(action.address);
+      }
+      return { ...appState, processor: { ...appState.processor, breakpoints } }
   }
 }

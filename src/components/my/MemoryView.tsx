@@ -2,6 +2,7 @@ import { useContext, useState } from 'react';
 import MemoryRow from './MemoryRow';
 import { List } from 'react-window';
 import { ProcessorContext } from '@/lib/ProcessorContext';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 interface MemoryViewProps {
   mode: 'Disassemble' | 'Memory',
@@ -25,7 +26,28 @@ export function MemoryView(props: MemoryViewProps) {
 
   return <div className="flex flex-col" style={{ maxHeight: "100%" }}>
     <div className="w-full flex-none flex flex-row text-sm px-2 bg-(--muted)">
-      <div className="text-(--muted-foreground) flex-none w-[50px]">Regs</div>
+      {props.mode === "Disassemble" ?
+        <div className="text-(--muted-foreground) flex-none w-[24px]">
+          <Tooltip>
+            <TooltipTrigger>
+              BP
+            </TooltipTrigger>
+            <TooltipContent>
+              Set breakpoints
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        : <></>}
+      <div className="text-(--muted-foreground) flex-none w-[50px]">
+        <Tooltip>
+          <TooltipTrigger>
+            Regs
+          </TooltipTrigger>
+          <TooltipContent>
+            Shows registers that are pointing to this address
+          </TooltipContent>
+        </Tooltip>
+      </div>
       <div className="text-(--muted-foreground) flex-none w-[80px]">Address</div>
       <div className="text-(--muted-foreground) flex-none w-[80px]">Hex</div>
       <div className="text-(--muted-foreground) flex-none w-[180px]">{props.mode === "Disassemble" ? "Disassembly" : "Decimal"}</div>
@@ -40,5 +62,5 @@ export function MemoryView(props: MemoryViewProps) {
       overscanCount={20}
       rowProps={{ mode: props.mode }}>
     </List>
-  </div>;
+  </div >;
 }

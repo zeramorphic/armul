@@ -1,4 +1,4 @@
-import { ChangeEventHandler, RefObject, useContext, useEffect, useRef } from "react";
+import { ChangeEventHandler, Ref, useContext, useEffect, useRef } from "react";
 import { Input } from "../ui/input";
 import { ProcessorContext } from "@/lib/ProcessorContext";
 import { DispatchContext } from "@/lib/DispatchContext";
@@ -7,7 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 export default function Terminal() {
   const dispatch = useContext(DispatchContext);
   const processor = useContext(ProcessorContext);
-  const inputRef: RefObject<HTMLInputElement | null> = useRef(null);
+  const inputRef: Ref<HTMLInputElement> = useRef(null);
   const terminalOutput = processor.info.output;
 
   useEffect(() => {

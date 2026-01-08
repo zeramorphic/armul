@@ -17,6 +17,7 @@ export interface Processor {
     visible_memory_memory: { start: number, end: number },
     registers: Registers,
     info: ProcessorInformation,
+    breakpoints: Set<number>,
 };
 
 type ProcessorState = { 'Ok': 'Running' | 'Stopped' } | { 'Err': string };
@@ -47,6 +48,7 @@ export function newProcessor(): Processor {
             steps: 0, nonseq_cycles: 0, seq_cycles: 0, internal_cycles: 0,
             output: "",
         },
+        breakpoints: new Set(),
     };
 }
 
@@ -66,7 +68,7 @@ export async function resynchronise(processor: Processor): Promise<Processor> {
     for (const { addr, mem } of entries) {
         memory.set(addr, mem);
     }
-    return { registers, visible_memory_disas: processor.visible_memory_disas, visible_memory_memory: processor.visible_memory_memory, memory, info }
+    return { ...processor, registers, memory, info }
 }
 
 /**
