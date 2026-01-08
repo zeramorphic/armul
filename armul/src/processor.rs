@@ -1,5 +1,7 @@
 //! A model of the ARM7TDMI processor.
 
+use std::fmt::Display;
+
 use serde::Serialize;
 
 use crate::{
@@ -1138,7 +1140,7 @@ pub type ProcessorResult = Result<(), ProcessorError>;
 
 /// The type of possible errors that can be encountered
 /// while executing an instruction.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub enum ProcessorError {
     /// The program counter was not 4-byte aligned.
     UnalignedPc,
@@ -1161,6 +1163,23 @@ pub enum ProcessorError {
     InvalidSwi,
     /// The register list in an LDM/STM was empty.
     RegisterListEmpty,
+}
+
+impl Display for ProcessorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProcessorError::UnalignedPc => write!(f, "PC not aligned"),
+            ProcessorError::UnalignedTransfer => write!(f, "Transfer not aligned"),
+            ProcessorError::InvalidTransfer => write!(f, "Invalid transfer"),
+            ProcessorError::UnrecognisedInstruction => write!(f, "Unrecognised instruction"),
+            ProcessorError::InvalidUseOfPc => write!(f, "Invalid use of PC"),
+            ProcessorError::PcUsedInShift => write!(f, "PC used in shift"),
+            ProcessorError::NoSpsr => write!(f, "No SPSR available"),
+            ProcessorError::AddressTooComplex => write!(f, "Address too complex"),
+            ProcessorError::InvalidSwi => write!(f, "Invalid interrupt"),
+            ProcessorError::RegisterListEmpty => write!(f, "Register list empty"),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -84,7 +84,7 @@ fn registers(state: tauri::State<'_, MyStateLock>) -> Registers {
 #[derive(Clone, Serialize)]
 pub struct ProcessorInformation {
     file: String,
-    state: ProcessorState,
+    state: Result<ProcessorState, String>,
     previous_pc: u32,
 
     steps: usize,
@@ -103,7 +103,7 @@ impl ProcessorInformation {
     pub fn new(file: String) -> ProcessorInformation {
         Self {
             file,
-            state: Default::default(),
+            state: Ok(Default::default()),
             previous_pc: 0,
             steps: Default::default(),
             nonseq_cycles: Default::default(),
@@ -139,19 +139,27 @@ impl<'a> ProcessorListener for TauriProcessorListener<'a> {
 }
 
 #[tauri::command]
-fn step_once(state: tauri::State<'_, MyStateLock>) -> Result<ProcessorState, ProcessorError> {
+fn step_once(state: tauri::State<'_, MyStateLock>) {
     let mut guard = state.0.write();
     let state = &mut *guard;
-    state.info.steps += 1;
     state.info.previous_pc = state.processor.registers().get(Register::R15);
-    state.processor.try_execute(&mut TauriProcessorListener {
+    let old_info = state.info.clone();
+    match state.processor.try_execute(&mut TauriProcessorListener {
         info: &mut state.info,
-    })?;
-    state.info.state = state.processor.state();
-    // Advance the program counter.
-    *state.processor.registers_mut().get_mut(Register::R15) += 4;
+    }) {
+        Ok(()) => {
+            state.info.state = Ok(state.processor.state());
 
-    Ok(state.processor.state())
+            // Advance the program counter and log that we've done a step.
+            state.info.steps += 1;
+            *state.processor.registers_mut().get_mut(Register::R15) += 4;
+        }
+        Err(err) => {
+            // Reset the old info because we didn't complete a step.
+            state.info = old_info;
+            state.info.state = Err(err.to_string());
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

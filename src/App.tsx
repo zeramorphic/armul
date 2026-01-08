@@ -14,7 +14,7 @@ import { AppAction, AppDispatch, newAppState, performAction } from "./AppAction"
 
 const actionQueue: AppAction[] = [];
 
-function App() {
+export default function App() {
   const [state, setState] = useState(newAppState());
   const theme = useTheme();
 
@@ -81,5 +81,3 @@ function App() {
     </>
   );
 }
-
-export default App;

@@ -20,7 +20,7 @@ export interface Processor {
     program_output: string,
 };
 
-type ProcessorState = 'Running' | 'Stopped';
+type ProcessorState = { 'Ok': 'Running' | 'Stopped' } | { 'Err': string };
 
 interface ProcessorInformation {
     file: string,
@@ -41,7 +41,7 @@ export function newProcessor(): Processor {
         visible_memory_memory: { start: 0, end: 0 },
         info: {
             file: 'unknown',
-            state: 'Stopped',
+            state: { 'Ok': 'Stopped' },
             previous_pc: 0,
             steps: 0, nonseq_cycles: 0, seq_cycles: 0, internal_cycles: 0,
         },

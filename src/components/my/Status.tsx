@@ -21,6 +21,13 @@ export default function Status() {
   const dispatch = useContext(AppContext);
   useHotkeys('f2', () => stepOnce(processor, dispatch));
 
+  var state;
+  if ('Ok' in processor.info.state) {
+    state = processor.info.state.Ok;
+  } else {
+    state = <span className="text-destructive">{processor.info.state.Err}</span>;
+  }
+
   return <div className="flex flex-col">
     <div className="flex flex-row p-2 justify-center">
       <ButtonGroup>
@@ -46,7 +53,7 @@ export default function Status() {
       <div className="flex">
         <div>Status</div>
         <div className="flex-1"></div>
-        <div>{processor.info.state}</div>
+        <div>{state}</div>
       </div>
       <div className="flex">
         <Tooltip>
