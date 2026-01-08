@@ -1,6 +1,7 @@
 ; Tests for the block transfer instruction
 
 ;! halts 300
+;! mode sys
 
 MODE_USR equ 0x10
 MODE_FIQ equ 0x11

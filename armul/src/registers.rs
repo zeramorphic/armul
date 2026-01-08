@@ -249,6 +249,21 @@ impl Registers {
         }
     }
 
+    /// Set the current mode of the processor.
+    pub fn set_mode(&mut self, mode: Mode) {
+        let cpsr = self.cpsr_mut();
+        *cpsr &= !0b11111;
+        *cpsr |= match mode {
+            Mode::Usr => 0b10000,
+            Mode::Fiq => 0b10001,
+            Mode::Irq => 0b10010,
+            Mode::Supervisor => 0b10011,
+            Mode::Abort => 0b10111,
+            Mode::System => 0b11011,
+            Mode::Undefined => 0b11111,
+        };
+    }
+
     /// Test the N flag.
     pub fn negative(&self) -> bool {
         self.cpsr() & (1 << 31) != 0

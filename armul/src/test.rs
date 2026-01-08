@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use crate::{
     assemble::{AssemblerError, AssemblerOutput, assemble},
     instr::{Instr, Register},
+    mode::Mode,
     processor::{Processor, ProcessorError, ProcessorState, test::TestProcessorListener},
     registers::PhysicalRegister,
 };
@@ -34,6 +35,8 @@ pub fn test(src: &str) -> Result<(), TestError> {
     let mut steps = None;
     // Whether the procedure is expected to halt itself within the given number of steps.
     let mut halts = false;
+    // The initial mode to initialise the processor with.
+    let mut mode = Mode::Usr;
     let mut output = BTreeMap::<PhysicalRegister, u32>::new();
     for line in src.lines() {
         if let Some(comment) = line.trim_start().strip_prefix(";!") {
@@ -108,9 +111,31 @@ pub fn test(src: &str) -> Result<(), TestError> {
                         steps = Some(
                             params
                                 .parse::<usize>()
-                                .map_err(|x| TestError::InvalidParams("steps", x.to_string()))?,
+                                .map_err(|x| TestError::InvalidParams("halts", x.to_string()))?,
                         );
                         halts = true;
+                    }
+                    "MODE" => {
+                        let mut succeeded = false;
+                        let param = params.trim().to_lowercase();
+                        for test_mode in [
+                            Mode::Usr,
+                            Mode::Fiq,
+                            Mode::Irq,
+                            Mode::Supervisor,
+                            Mode::Abort,
+                            Mode::System,
+                            Mode::Undefined,
+                        ] {
+                            if param == test_mode.to_string().to_lowercase() || param == format!("{test_mode:?}").to_lowercase() {
+                                mode = test_mode;
+                                succeeded = true;
+                                break;
+                            }
+                        }
+                        if !succeeded {
+                            return Err(TestError::InvalidParams("mode", param));
+                        }
                     }
                     _ => return Err(TestError::InvalidComment(comment.to_owned())),
                 }
@@ -123,6 +148,7 @@ pub fn test(src: &str) -> Result<(), TestError> {
     };
 
     let mut proc = Processor::default();
+    proc.registers_mut().set_mode(mode);
     let mut listener = TestProcessorListener::default();
     let mut halted = false;
     proc.memory_mut().set_words_aligned(0x0, &assembled.instrs);

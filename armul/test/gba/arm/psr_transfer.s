@@ -1,6 +1,7 @@
 ; Tests for the PSR transfer instruction
 
 ;! halts 100
+;! mode sys
 
 MODE_USR equ 0x10
 MODE_FIQ equ 0x11

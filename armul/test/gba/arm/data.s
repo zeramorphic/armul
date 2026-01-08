@@ -1,6 +1,7 @@
 ; Tests for the data processing instruction
 
 ;! halts 300
+;! mode sys
 
 FLAG_N equ 1 lsl 31
 FLAG_Z equ 1 lsl 30

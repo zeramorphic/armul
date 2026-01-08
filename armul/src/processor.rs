@@ -1116,6 +1116,22 @@ pub trait ProcessorListener {
     /// Simulate a pipeline flush.
     /// This takes 1S + 1N cycles to recover.
     fn pipeline_flush(&mut self, pc: u32);
+
+    /// Read a character from a connected input stream.
+    /// If a character could not be read, return [`None`].
+    fn getc(&mut self) -> Option<char>;
+    /// Write a character to a connected output stream.
+    fn putc(&mut self, c: char);
+    /// Write a string to a connected output stream.
+    fn puts(&mut self, s: &str) {
+        for c in s.chars() {
+            self.putc(c);
+        }
+    }
+    /// Write an integer to a connected output stream.
+    fn putint(&mut self, i: u32) {
+        self.puts(&i.to_string());
+    }
 }
 
 /// One of the four cycle types in the CPU.
@@ -1192,6 +1208,9 @@ pub mod test {
         n_cycles: usize,
         s_cycles: usize,
         i_cycles: usize,
+
+        input_reversed: Vec<char>,
+        output: String,
     }
 
     impl ProcessorListener for TestProcessorListener {
@@ -1207,6 +1226,14 @@ pub mod test {
         fn pipeline_flush(&mut self, _pc: u32) {
             self.n_cycles += 1;
             self.s_cycles += 1;
+        }
+
+        fn getc(&mut self) -> Option<char> {
+            self.input_reversed.pop()
+        }
+
+        fn putc(&mut self, c: char) {
+            self.output.push(c)
         }
     }
 }
