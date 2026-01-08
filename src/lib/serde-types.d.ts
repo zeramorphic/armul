@@ -11,7 +11,7 @@ interface PrettyInstr {
     args: PrettyArgument[],
 };
 
-type PrettyArgument = RegisterArgument | PsrArgument | ShiftArgument | ConstantArgument | RegisterSetArgument;
+type PrettyArgument = RegisterArgument | PsrArgument | ShiftArgument | ConstantArgument | AddressArgument | RegisterSetArgument;
 
 interface RegisterArgument {
     type: 'Register',
@@ -25,6 +25,13 @@ interface PsrArgument {
     psr: string,
     flag: boolean,
 };
+
+interface AddressArgument {
+    type: 'Address',
+    base_register: Register,
+    operands: PrettyArgument[],
+    write_back: boolean,
+}
 
 interface ShiftArgument {
     type: 'Shift',
@@ -48,6 +55,7 @@ interface RegisterShiftAmount {
 
 interface ConstantArgument {
     type: 'Constant',
+    negative: boolean,
     value: number,
     style: ConstantStyle,
 };

@@ -35,23 +35,28 @@ function renderPrettyArgument(arg: PrettyArgument): ReactNode {
       var amount;
       switch (arg.shift_amount.type) {
         case 'Register':
-          amount = <span className="register">{registerToString(arg.shift_amount.value)}</span>;
+          amount = <span className="register"> {registerToString(arg.shift_amount.value)}</span>;
           break;
         case 'Constant':
-          amount = <span className="addr">{arg.shift_amount.value}</span>;
+          amount = <span className="addr"> {arg.shift_amount.value}</span>;
           break;
       }
-      return <span className="faint">{shiftTypeToString(arg.shift_type)} {arg.shift_type == 'RotateRightExtended' ? "" : amount}</span>;
+      return <span className="faint">{shiftTypeToString(arg.shift_type)}{arg.shift_type == 'RotateRightExtended' ? "" : amount}</span>;
     case 'Constant':
       switch (arg.style) {
         case 'Address':
-          return <span>{renderAddress(arg.value, 'addr-faint', 'addr', true)}</span>;
+          return <span>{arg.negative ? '-' : ''}{renderAddress(arg.value, 'addr-faint', 'addr', true)}</span>;
         case 'UnsignedDecimal':
-          return <span className="addr">{arg.value}</span>;
+          return <span className="addr">{arg.negative ? '-' : ''}{arg.value}</span>;
         case 'Unknown':
-          return <span className="addr">{arg.value}</span>;
+          return <span className="addr">{arg.negative ? '-' : ''}{arg.value}</span>;
         default: return <span>unknown_constant</span>;
       }
+    case 'Address':
+      return <span className="faint">[
+        {renderPrettyArgument({ type: 'Register', register: arg.base_register, negative: false, write_back: false })}
+        {arg.operands.map((operand, index) => <>, <span key={index}>{renderPrettyArgument(operand)}</span></>)}
+        ]{arg.write_back ? '!' : ''}</span>
     case 'RegisterSet':
       return <span className="faint">&#123;
         {registerRanges(arg.registers).map((range, index) =>

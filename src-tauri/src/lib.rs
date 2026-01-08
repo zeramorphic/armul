@@ -59,7 +59,10 @@ async fn load_program(
     let mut state = state.0.write();
     state.processor = new_processor;
     state.assembled = Some(assembled);
-    state.info = ProcessorInformation::new(path.to_string_lossy().to_string());
+    state.info = ProcessorInformation::new(path.file_name().map_or_else(
+        || path.to_string_lossy().to_string(),
+        |base| base.to_string_lossy().to_string(),
+    ));
     Ok(())
 }
 

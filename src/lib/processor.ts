@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { LineInfo, Registers } from "./serde-types";
-import { AppDispatch } from "@/App";
+import { AppDispatch } from "@/AppAction";
 
 /**
  * A copy of some of the processor's information,
