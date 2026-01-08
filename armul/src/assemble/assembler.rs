@@ -84,7 +84,7 @@ fn single_pass(
                     vacant_entry.insert(line.comment.clone());
                 }
                 Entry::Occupied(mut occupied_entry) => {
-                    occupied_entry.get_mut().push_str(". ");
+                    occupied_entry.get_mut().push(' ');
                     occupied_entry.get_mut().push_str(&line.comment);
                 }
             }

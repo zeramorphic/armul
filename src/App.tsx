@@ -1,245 +1,47 @@
-import { ReactNode, RefObject, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { ReactNode, useEffect, useState } from "react";
 import "./App.css";
 import { Menu } from "./components/my/Menu";
-import { MemoryView } from "./components/my/MemoryView";
 import { Toaster } from "./components/ui/sonner";
-import { toast } from "sonner";
-import { IJsonModel, Layout, Model, TabNode } from 'flexlayout-react';
-import './flexlayout.css';
 import { useTheme } from "./components/theme-provider";
-import Registers from "./components/my/Registers";
 import { ProcessorContext } from "./lib/ProcessorContext";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from "./components/ui/empty";
 import { Binary } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { AppContext } from "./lib/AppContext";
-import { LineInfo } from "./lib/serde-types";
-import * as processor from "./lib/processor";
-import Status from "./components/my/Status";
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./components/ui/alert-dialog";
-import Terminal from "./components/my/Terminal";
+import { AlertDialog, AlertDialogContent } from "./components/ui/alert-dialog";
+import TabLayout from "./components/my/TabLayout";
+import { AppAction, AppDispatch, newAppState, performAction } from "./AppAction";
 
-var modelJson: IJsonModel = {
-  global: {
-    splitterSize: 4,
-    splitterExtra: 4,
-  },
-  borders: [],
-  layout: {
-    type: "row",
-    weight: 100,
-    children: [
-      {
-        type: "row",
-        weight: 20,
-        children: [
-          {
-            type: "tabset",
-            enableTabStrip: false,
-            weight: 30,
-            children: [
-              {
-                type: "tab",
-                enableClose: false,
-                name: "Status",
-                component: "status",
-              }
-            ],
-          },
-          {
-            type: "tabset",
-            weight: 70,
-            children: [
-              {
-                type: "tab",
-                enableClose: false,
-                name: "Registers",
-                component: "registers",
-              }
-            ]
-          },
-        ]
-      },
-      {
-        type: "row",
-        weight: 80,
-        children: [
-          {
-            type: "tabset",
-            weight: 70,
-            children: [
-              {
-                type: "tab",
-                enableClose: false,
-                name: "Disassembly",
-                component: "disas",
-              }
-            ],
-          },
-          {
-            type: "row",
-            weight: 30,
-            children: [
-              {
-                type: "tabset",
-                weight: 50,
-                children: [
-                  {
-                    type: "tab",
-                    enableClose: false,
-                    name: "Memory",
-                    component: "memory",
-                  }
-                ],
-              },
-              {
-                type: "tabset",
-                weight: 50,
-                children: [
-                  {
-                    type: "tab",
-                    enableClose: false,
-                    name: "Terminal",
-                    component: "terminal",
-                  }
-                ]
-              },
-            ]
-          },
-        ]
-      }
-    ]
-  }
-};
-
-const model = Model.fromJson(modelJson);
-const factory = (node: TabNode) => {
-  const component = node.getComponent();
-
-  switch (component) {
-    case 'placeholder': return <div>{node.getName()}</div>;
-    case 'status': return <Status />;
-    case 'registers': return <Registers />;
-    case 'disas': return <MemoryView mode={'Disassemble'} />;
-    case 'memory': return <MemoryView mode={'Memory'} />;
-    case 'terminal': return <Terminal />;
-  }
-};
-
-interface AppState {
-  processor: processor.Processor,
-  ready: boolean,
-};
-
-function newAppState(): AppState {
-  return {
-    processor: processor.newProcessor(),
-    ready: false,
-  }
-}
-
-export type AppAction = ProcessorRead | ProcessorUpdate | OpenFile | OpenFileResolve;
-
-export type AppDispatch = (action: AppAction) => void;
-
-/**
- * We asynchronously read some memory from the Rust-side processor.
- * We now need to store it in the TS-side processor state.
- */
-interface ProcessorRead {
-  type: "processor_read",
-  addr: number,
-  info: LineInfo,
-}
-
-interface ProcessorUpdate {
-  type: "processor_update",
-  newProcessor: processor.Processor,
-}
-
-interface OpenFile {
-  type: "open_file",
-}
-
-interface OpenFileResolve {
-  type: "open_file_resolve",
-  file: File,
-  newProcessor: processor.Processor,
-}
-
-export function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, file: File, errorDialog: (contents: ReactNode) => void) {
-  const loadProgram = async () => {
-    const contents = await file.text();
-    await invoke("load_program", { file: file.name, contents });
-    const newProcessor = await processor.resynchronise(proc);
-    dispatch({ type: "open_file_resolve", file, newProcessor });
-  };
-  toast.promise(loadProgram().catch((errs: { line_number: number, error: string }[]) => {
-    errorDialog(<>
-      <AlertDialogHeader>
-        <AlertDialogTitle>
-          Could not load {file.name}
-        </AlertDialogTitle>
-        <AlertDialogDescription className="text-sm">
-          {errs.map(({ line_number, error }) => <div>
-            Line {line_number}: {error}
-          </div>)}
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel>Ok</AlertDialogCancel>
-      </AlertDialogFooter>
-    </>);
-    throw errs
-  }), {
-    loading: "Loading " + file.name + "...",
-    success: "Loaded " + file.name + "."
-  });
-}
-
-function performAction(
-  appState: AppState,
-  action: AppAction,
-  openFileInput: RefObject<HTMLInputElement | null>,
-): AppState {
-  switch (action.type) {
-    case "processor_read":
-      const memory = new Map(appState.processor.memory);
-      memory.set(action.addr, action.info);
-      return { ...appState, processor: { ...appState.processor, memory } };
-    case "processor_update":
-      return {
-        ...appState,
-        processor: action.newProcessor,
-      };
-    case "open_file":
-      openFileInput.current?.click();
-      return appState;
-    case "open_file_resolve":
-      return {
-        ...appState,
-        ready: true,
-        processor: action.newProcessor,
-      };
-  }
-}
+const actionQueue: AppAction[] = [];
 
 function App() {
   const [state, setState] = useState(newAppState());
   const theme = useTheme();
 
-  const openFileInput = useRef<HTMLInputElement>(null);
-
   const [alertOpen, alertSetOpen] = useState(false);
   const [alertContents, alertSetContents] = useState<ReactNode>();
 
-  // A callback to execute the given action.
-  const dispatch: AppDispatch = (action: AppAction) => setState(appState => performAction(appState, action, openFileInput));
+  const [actionsPending, setActionsPending] = useState(false);
+  const dispatch: AppDispatch = (action) => {
+    actionQueue.push(action);
+    setActionsPending(true);
+  };
+
+  useEffect(() => {
+    if (actionsPending) {
+      const finalState = actionQueue.reduce((state, action) =>
+        performAction(state, action,
+          (err) => { alertSetOpen(true); alertSetContents(err); }),
+        state);
+      setState(finalState);
+      setActionsPending(false);
+      actionQueue.length = 0;
+    }
+  }, [actionsPending]);
 
   var body;
   if (state.ready) {
-    body = <Layout model={model} factory={factory} realtimeResize={true} />;
+    body = <TabLayout />;
   } else {
     body = <Empty>
       <EmptyMedia className="bg-muted p-3">
@@ -250,22 +52,13 @@ function App() {
         Open an ARM assembly file (<span className="font-mono">.s</span>) to load it into the emulator.
       </EmptyDescription>
       <EmptyContent>
-        <Button onClick={() => dispatch({ type: "open_file" })}>Open File</Button>
+        <Button onClick={() => dispatch({ type: "open_file", dispatch })}>Open File</Button>
       </EmptyContent>
     </Empty>;
   }
 
   return (
     <>
-      {/* TODO: The `accept` attribute isn't working as intended. */}
-      <input type="file" style={{ "display": "none" }} ref={openFileInput} accept=".s," onChange={event => {
-        if (event.target.files?.length === 1) {
-          performOpenFile(state.processor, dispatch, event.target.files[0], (err) => {
-            alertSetOpen(true);
-            alertSetContents(err);
-          });
-        }
-      }} />
       <AlertDialog open={alertOpen} onOpenChange={alertSetOpen}>
         <AlertDialogContent>
           {alertContents}

@@ -1,5 +1,7 @@
+use std::path::Path;
+
 use armul::{
-    assemble::{assemble, AssemblerError, AssemblerOutput},
+    assemble::{assemble, AssemblerOutput},
     instr::{LineInfo, Register},
     processor::{Processor, ProcessorError, ProcessorListener, ProcessorState},
     registers::Registers,
@@ -21,21 +23,32 @@ struct MyStateLock(RwLock<MyState>);
 
 #[derive(Serialize)]
 struct PrettyAssemblerError {
-    line_number: usize,
+    line_number: Option<usize>,
     error: String,
 }
 
 #[tauri::command]
 async fn load_program(
     state: tauri::State<'_, MyStateLock>,
-    file: &str,
-    contents: &str,
+    path: &Path,
 ) -> Result<(), Vec<PrettyAssemblerError>> {
-    let assembled = assemble(contents).map_err(|errs| {
+    let contents = std::fs::read_to_string(path).map_err(|e| {
+        vec![PrettyAssemblerError {
+            line_number: None,
+            error: e.to_string(),
+        }]
+    })?;
+    let assembled = assemble(&contents).map_err(|errs| {
         errs.into_iter()
-            .map(|err| PrettyAssemblerError {
-                line_number: err.line_number,
-                error: err.error.to_string(),
+            .map(|err| match err.error {
+                armul::assemble::LineError::ParseError(parse_error) => PrettyAssemblerError {
+                    line_number: None,
+                    error: parse_error,
+                },
+                error => PrettyAssemblerError {
+                    line_number: Some(err.line_number),
+                    error: error.to_string(),
+                },
             })
             .collect::<Vec<_>>()
     })?;
@@ -46,7 +59,7 @@ async fn load_program(
     let mut state = state.0.write();
     state.processor = new_processor;
     state.assembled = Some(assembled);
-    state.info = ProcessorInformation::new(file.to_owned());
+    state.info = ProcessorInformation::new(path.to_string_lossy().to_string());
     Ok(())
 }
 
@@ -141,7 +154,7 @@ fn step_once(state: tauri::State<'_, MyStateLock>) -> Result<ProcessorState, Pro
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(MyStateLock::default())
         .invoke_handler(tauri::generate_handler![
             load_program,

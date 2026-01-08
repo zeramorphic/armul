@@ -8,7 +8,7 @@ import {
   MenubarTrigger,
 } from "@/components/ui/menubar"
 import "./Menu.css";
-import React, { useContext } from "react"
+import { useContext } from "react"
 import { useHotkeys } from 'react-hotkeys-hook'
 import { ThemeProviderState, useTheme } from "../theme-provider";
 import { AppContext } from "@/lib/AppContext";
@@ -25,7 +25,7 @@ export function Menu() {
   const themeProvider = useTheme();
   const dispatch = useContext(AppContext);
 
-  useHotkeys('ctrl+o', () => dispatch({ type: "open_file" }));
+  useHotkeys('ctrl+o', () => dispatch({ type: "open_file", dispatch }));
   useHotkeys('ctrl+k', () => toggleDarkMode(themeProvider));
 
   return (
@@ -34,7 +34,7 @@ export function Menu() {
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem onClick={() => dispatch({ type: "open_file" })}>
+            <MenubarItem onClick={() => dispatch({ type: "open_file", dispatch })}>
               Open File...
               <MenubarShortcut>Ctrl+O</MenubarShortcut>
             </MenubarItem>

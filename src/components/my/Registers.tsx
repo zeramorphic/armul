@@ -6,14 +6,13 @@ export default function Registers() {
   const registers = useContext(ProcessorContext).registers;
 
   const cpsr = registers.regs[31];
-  console.log(cpsr);
   var flags = [];
   for (const { bit, letter } of [{ bit: 31, letter: 'N' }, { bit: 30, letter: 'Z' }, { bit: 29, letter: 'C' }, { bit: 28, letter: 'V' }]) {
-    flags.push(<span className={(cpsr & (1 << bit)) > 0 ? "pr-1" : "text-(--extremely-muted-foreground) pr-1"}>{letter}</span>);
+    flags.push(<span key={bit} className={(cpsr & (1 << bit)) > 0 ? "pr-1" : "text-(--extremely-muted-foreground) pr-1"}>{letter}</span>);
   }
   flags.push(<span className="mx-2"></span>);
   for (const { bit, letter } of [{ bit: 7, letter: 'I' }, { bit: 6, letter: 'F' }, { bit: 5, letter: 'T' }]) {
-    flags.push(<span className={(cpsr & (1 << bit)) > 0 ? "pr-1" : "text-(--extremely-muted-foreground) pr-1"}>{letter}</span>);
+    flags.push(<span key={bit} className={(cpsr & (1 << bit)) > 0 ? "pr-1" : "text-(--extremely-muted-foreground) pr-1"}>{letter}</span>);
   }
 
   var mode = "??? mode";

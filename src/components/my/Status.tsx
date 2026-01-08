@@ -6,7 +6,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { ProcessorContext } from "@/lib/ProcessorContext";
 import { useContext } from "react";
 import { AppContext } from "@/lib/AppContext";
-import { AppDispatch } from "@/App";
+import { AppDispatch } from "@/AppAction";
 import { Processor, resynchronise } from "@/lib/processor";
 import { invoke } from "@tauri-apps/api/core";
 
