@@ -18,6 +18,7 @@ import { LineInfo } from "./lib/serde-types";
 import * as processor from "./lib/processor";
 import Status from "./components/my/Status";
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./components/ui/alert-dialog";
+import Terminal from "./components/my/Terminal";
 
 var modelJson: IJsonModel = {
   global: {
@@ -77,15 +78,33 @@ var modelJson: IJsonModel = {
             ],
           },
           {
-            type: "tabset",
+            type: "row",
             weight: 30,
             children: [
               {
-                type: "tab",
-                enableClose: false,
-                name: "Memory",
-                component: "memory",
-              }
+                type: "tabset",
+                weight: 50,
+                children: [
+                  {
+                    type: "tab",
+                    enableClose: false,
+                    name: "Memory",
+                    component: "memory",
+                  }
+                ],
+              },
+              {
+                type: "tabset",
+                weight: 50,
+                children: [
+                  {
+                    type: "tab",
+                    enableClose: false,
+                    name: "Terminal",
+                    component: "terminal",
+                  }
+                ]
+              },
             ]
           },
         ]
@@ -104,6 +123,7 @@ const factory = (node: TabNode) => {
     case 'registers': return <Registers />;
     case 'disas': return <MemoryView mode={'Disassemble'} />;
     case 'memory': return <MemoryView mode={'Memory'} />;
+    case 'terminal': return <Terminal />;
   }
 };
 

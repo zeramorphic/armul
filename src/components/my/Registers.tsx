@@ -4,7 +4,28 @@ import { ProcessorContext } from '@/lib/ProcessorContext';
 
 export default function Registers() {
   const registers = useContext(ProcessorContext).registers;
-  const cpsr = <span>Flags: {registers.regs[31].toString(16).toUpperCase().padStart(8, '0')}</span>;
+
+  const cpsr = registers.regs[31];
+  console.log(cpsr);
+  var flags = [];
+  for (const { bit, letter } of [{ bit: 31, letter: 'N' }, { bit: 30, letter: 'Z' }, { bit: 29, letter: 'C' }, { bit: 28, letter: 'V' }]) {
+    flags.push(<span className={(cpsr & (1 << bit)) > 0 ? "pr-1" : "text-(--extremely-muted-foreground) pr-1"}>{letter}</span>);
+  }
+  flags.push(<span className="mx-2"></span>);
+  for (const { bit, letter } of [{ bit: 7, letter: 'I' }, { bit: 6, letter: 'F' }, { bit: 5, letter: 'T' }]) {
+    flags.push(<span className={(cpsr & (1 << bit)) > 0 ? "pr-1" : "text-(--extremely-muted-foreground) pr-1"}>{letter}</span>);
+  }
+
+  var mode = "??? mode";
+  switch (cpsr & 0b11111) {
+    case 0b10000: mode = "USR mode"; break;
+    case 0b10001: mode = "FIQ mode"; break;
+    case 0b10010: mode = "IRQ mode"; break;
+    case 0b10011: mode = "SVC mode"; break;
+    case 0b10111: mode = "ABT mode"; break;
+    case 0b11011: mode = "UND mode"; break;
+    case 0b11111: mode = "SYS mode"; break;
+  }
 
   return <div className="status">
     <div className="w-full flex-none flex flex-row text-sm px-2 bg-(--muted)">
@@ -21,6 +42,11 @@ export default function Registers() {
         <div className="flex-1">{renderNumber(registers.regs[n])}</div>
       </div>;
     })}
-    {cpsr}
+    <div className="h-2"></div>
+    <div className="px-2 flex">
+      <div className="font-mono">{flags}</div>
+      <div className="flex-1"></div>
+      <div className="text-sm font-mono flex items-center">{mode}</div>
+    </div>
   </div>;
 }
