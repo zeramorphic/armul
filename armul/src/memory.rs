@@ -35,11 +35,17 @@ impl Memory {
 
     /// Access the word at a word-aligned (4-byte aligned) address.
     pub fn get_word_aligned(&self, addr: u32) -> u32 {
+        self.get_word_aligned_option(addr)
+            .unwrap_or(self.default_word)
+    }
+
+    /// Access the word at a word-aligned (4-byte aligned) address.
+    /// If the given byte had no defined value, return [`None`].
+    pub fn get_word_aligned_option(&self, addr: u32) -> Option<u32> {
         let (a, b, c, _) = to_indices(addr);
         self.root[a]
             .as_ref()
             .and_then(|dir| dir[b].as_ref().map(|table| table[c]))
-            .unwrap_or(self.default_word)
     }
 
     pub fn get_words_aligned(&self, addr: u32, result: &mut [u32]) {
@@ -50,6 +56,12 @@ impl Memory {
 
     pub fn get_byte(&self, addr: u32) -> u8 {
         self.get_word_aligned(addr >> 2 << 2).to_le_bytes()[addr as usize % 4]
+    }
+
+    /// If the given byte had no defined value, return [`None`].
+    pub fn get_byte_option(&self, addr: u32) -> Option<u8> {
+        self.get_word_aligned_option(addr >> 2 << 2)
+            .map(|value| value.to_le_bytes()[addr as usize % 4])
     }
 
     pub fn set_word_aligned(&mut self, addr: u32, value: u32) {

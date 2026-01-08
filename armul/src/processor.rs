@@ -185,9 +185,51 @@ impl Processor {
                 base,
             } => self.execute_swap(pc, byte, dest, source, base, listener),
             Instr::SoftwareInterrupt { comment } => match comment {
+                0 => {
+                    // Output R0 as a character.
+                    // We use the replacement character U+FFFD if R0 wasn't a character.
+                    listener.putc(
+                        char::from_u32(self.registers.get(Register::R0)).unwrap_or('\u{FFFD}'),
+                    );
+                    Ok(())
+                }
+                1 => {
+                    // Input a character to R0.
+                    match listener.getc() {
+                        Some(c) => {
+                            self.registers.set(Register::R0, c as u32);
+                            Ok(())
+                        }
+                        None => Err(ProcessorError::WaitingForInput),
+                    }
+                }
                 2 => {
                     // Halt the processor.
                     self.state = ProcessorState::Stopped;
+                    Ok(())
+                }
+                3 => {
+                    // Print the null-terminated byte-sized C-string with address in R0.
+                    // This could cause problems if unchecked so we'll make sure that the
+                    // string does actually terminate by stopping once we reach undefined memory.
+                    let mut addr = self.registers.get(Register::R0);
+                    loop {
+                        // We use the replacement character U+FFFD if R0 wasn't a character.
+                        let byte = self
+                            .memory
+                            .get_byte_option(addr)
+                            .ok_or(ProcessorError::StringNotTerminated)?;
+                        if byte == 0 {
+                            break;
+                        }
+                        listener.putc(char::from_u32(byte as u32).unwrap_or('\u{FFFD}'));
+                        addr += 1;
+                    }
+                    Ok(())
+                }
+                4 => {
+                    // Print the integer in R0.
+                    listener.putint(self.registers.get(Register::R0));
                     Ok(())
                 }
                 _ => Err(ProcessorError::InvalidSwi),
@@ -1122,15 +1164,11 @@ pub trait ProcessorListener {
     fn getc(&mut self) -> Option<char>;
     /// Write a character to a connected output stream.
     fn putc(&mut self, c: char);
-    /// Write a string to a connected output stream.
-    fn puts(&mut self, s: &str) {
-        for c in s.chars() {
-            self.putc(c);
-        }
-    }
     /// Write an integer to a connected output stream.
     fn putint(&mut self, i: u32) {
-        self.puts(&i.to_string());
+        for c in i.to_string().chars() {
+            self.putc(c);
+        }
     }
 }
 
@@ -1179,6 +1217,10 @@ pub enum ProcessorError {
     InvalidSwi,
     /// The register list in an LDM/STM was empty.
     RegisterListEmpty,
+    /// The processor is waiting for a character of input to be available.
+    WaitingForInput,
+    /// The given string was not null-terminated.
+    StringNotTerminated,
 }
 
 impl Display for ProcessorError {
@@ -1194,6 +1236,8 @@ impl Display for ProcessorError {
             ProcessorError::AddressTooComplex => write!(f, "Address too complex"),
             ProcessorError::InvalidSwi => write!(f, "Invalid interrupt"),
             ProcessorError::RegisterListEmpty => write!(f, "Register list empty"),
+            ProcessorError::WaitingForInput => write!(f, "Waiting for input"),
+            ProcessorError::StringNotTerminated => write!(f, "String not null-terminated"),
         }
     }
 }
@@ -1209,8 +1253,8 @@ pub mod test {
         s_cycles: usize,
         i_cycles: usize,
 
-        input_reversed: Vec<char>,
-        output: String,
+        pub input_reversed: Vec<char>,
+        pub output: String,
     }
 
     impl ProcessorListener for TestProcessorListener {

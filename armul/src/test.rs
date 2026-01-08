@@ -37,7 +37,11 @@ pub fn test(src: &str) -> Result<(), TestError> {
     let mut halts = false;
     // The initial mode to initialise the processor with.
     let mut mode = Mode::Usr;
-    let mut output = BTreeMap::<PhysicalRegister, u32>::new();
+    // The content of the standard input and output streams.
+    let mut input = String::new();
+    let mut output = String::new();
+
+    let mut registers = BTreeMap::<PhysicalRegister, u32>::new();
     for line in src.lines() {
         if let Some(comment) = line.trim_start().strip_prefix(";!") {
             let comment = comment.trim();
@@ -93,7 +97,7 @@ pub fn test(src: &str) -> Result<(), TestError> {
             .rev()
             {
                 if kwd == pattern {
-                    output.insert(reg, parse_param(&assembled, params)?);
+                    registers.insert(reg, parse_param(&assembled, params)?);
                     kwd_found = true;
                     break;
                 }
@@ -127,7 +131,9 @@ pub fn test(src: &str) -> Result<(), TestError> {
                             Mode::System,
                             Mode::Undefined,
                         ] {
-                            if param == test_mode.to_string().to_lowercase() || param == format!("{test_mode:?}").to_lowercase() {
+                            if param == test_mode.to_string().to_lowercase()
+                                || param == format!("{test_mode:?}").to_lowercase()
+                            {
                                 mode = test_mode;
                                 succeeded = true;
                                 break;
@@ -136,6 +142,12 @@ pub fn test(src: &str) -> Result<(), TestError> {
                         if !succeeded {
                             return Err(TestError::InvalidParams("mode", param));
                         }
+                    }
+                    "INPUT" => {
+                        input.push_str(&unescape::unescape(params).unwrap());
+                    }
+                    "OUTPUT" => {
+                        output.push_str(&unescape::unescape(params).unwrap());
                     }
                     _ => return Err(TestError::InvalidComment(comment.to_owned())),
                 }
@@ -150,6 +162,7 @@ pub fn test(src: &str) -> Result<(), TestError> {
     let mut proc = Processor::default();
     proc.registers_mut().set_mode(mode);
     let mut listener = TestProcessorListener::default();
+    listener.input_reversed = input.chars().rev().collect();
     let mut halted = false;
     proc.memory_mut().set_words_aligned(0x0, &assembled.instrs);
     for i in 0..steps {
@@ -180,14 +193,25 @@ pub fn test(src: &str) -> Result<(), TestError> {
     println!("{}", proc.registers());
 
     // Assert that all of the results were as expected.
-    assert_eq!(halts, halted, "halting behaviour mismatch");
-    for (reg, value) in output {
+    assert_eq!(halted, halts, "halting behaviour mismatch");
+    for (reg, value) in registers {
         assert_eq!(
             proc.registers().get_physical(reg),
             value,
             "mismatch on register {reg:?}"
         );
     }
+
+    assert_eq!(listener.output, output, "output mismatch");
+    assert_eq!(
+        listener
+            .input_reversed
+            .into_iter()
+            .rev()
+            .collect::<String>(),
+        "",
+        "input not all consumed"
+    );
 
     Ok(())
 }
