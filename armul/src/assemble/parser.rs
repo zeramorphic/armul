@@ -125,7 +125,7 @@ enum Token<'a> {
     #[regex(r"[ \t\f]+")]
     Whitespace,
 
-    #[regex("\n")]
+    #[regex("\r?\n")]
     Newline,
 
     #[regex(r";[^\n]*", allow_greedy = true)]
