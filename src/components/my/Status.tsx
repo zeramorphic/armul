@@ -1,4 +1,4 @@
-import { PlayIcon, RefreshCwIcon, StepBackIcon, StepForwardIcon } from "lucide-react";
+import { Info, PlayIcon, RefreshCwIcon, StepBackIcon, StepForwardIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { ButtonGroup } from "../ui/button-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -61,7 +61,7 @@ export default function Status() {
       <div className="flex">
         <Tooltip>
           <TooltipTrigger asChild>
-            <div>Steps &#9432;</div>
+            <div>Steps <Info className="inline" height={16} /></div>
           </TooltipTrigger>
           <TooltipContent>
             Counts the number of instructions that have been executed.
@@ -73,7 +73,7 @@ export default function Status() {
       <div className="flex">
         <Tooltip>
           <TooltipTrigger asChild>
-            <div>Processor time &#9432;</div>
+            <div>Processor time <Info className="inline" height={16} /></div>
           </TooltipTrigger>
           <TooltipContent>
             An estimation of the amount of time it would have taken to run this program on a real ARM7TDMI chip.
