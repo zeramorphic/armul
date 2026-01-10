@@ -217,3 +217,29 @@ body,
 .addr-faint {
   color: var(--addr-faint);
 }
+
+@font-face {
+  font-display: block;
+  font-family: Inter;
+  src: url("/fonts/inter/Inter-VariableFont_opsz,wght.ttf");
+}
+
+@font-face {
+  font-display: block;
+  font-family: Inter;
+  font-style: italic;
+  src: url("/fonts/inter/Inter-Italic-VariableFont_opsz,wght.ttf");
+}
+
+@font-face {
+  font-display: block;
+  font-family: JuliaMono;
+  src: url("/fonts/juliamono/JuliaMono-Regular.woff2");
+}
+
+@font-face {
+  font-display: block;
+  font-family: JuliaMono;
+  font-style: italic;
+  src: url("/fonts/juliamono/JuliaMono-RegularItalic.woff2");
+}

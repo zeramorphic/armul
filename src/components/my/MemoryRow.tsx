@@ -170,7 +170,7 @@ export default function MemoryRow(props: RowComponentProps<MemoryRowProps>) {
     <div className="text-(--muted-foreground) flex-none w-[80px]">{renderAddress(addr, "text-(--extremely-muted-foreground)")}</div>
     <div className={cn(props.mode === "Disassemble" ? "text-(--muted-foreground)" : "", "flex-none w-[80px]")}>{renderAddress(info?.value ?? 0, "text-(--extremely-muted-foreground)")}</div>
     <div className="flex-none w-[180px]">{body}</div>
-    {props.mode === "Disassemble" ? <div className="flex-1 text-emerald-600">{info?.comment}</div> : <></>}
+    {props.mode === "Disassemble" ? <div className="flex-1 text-emerald-600 italic">{info?.comment}</div> : <></>}
   </div>;
 }
 
