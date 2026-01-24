@@ -37,6 +37,8 @@ export default function Status() {
   useHotkeys('f5', () => { processor.playing ? pause(dispatch) : play(dispatch) });
   useHotkeys('-', () => dispatch({ type: "simulation_speed", multiplier: 0.5 }), { useKey: true });
   useHotkeys('=', () => dispatch({ type: "simulation_speed", multiplier: 2 }), { useKey: true });
+  useHotkeys('ctrl+r', () => dispatch({ type: "reset", hard: false, dispatch }));
+  useHotkeys('ctrl+shift+r', () => dispatch({ type: "reset", hard: true, dispatch }));
 
   var state;
   if ('Ok' in processor.info.state) {
@@ -71,7 +73,7 @@ export default function Status() {
             <Button variant="outline" className="rounded" disabled={processor.playing} onClick={() => dispatch({ type: "reset", hard: false, dispatch })}><RefreshCcwIcon /></Button>
           </TooltipTrigger>
           <TooltipContent>
-            Soft reset (preserving memory and registers)
+            Soft reset (preserving memory and registers)&emsp;<span className="rounded text-muted-foreground tracking-widest ml-auto">Ctrl+R</span>
           </TooltipContent>
         </Tooltip>
         <Tooltip>
@@ -79,7 +81,7 @@ export default function Status() {
             <Button variant="outline" className="rounded" disabled={processor.playing} onClick={() => dispatch({ type: "reset", hard: true, dispatch })}><RefreshCcwDotIcon /></Button>
           </TooltipTrigger>
           <TooltipContent>
-            Hard reset (including memory and registers)
+            Hard reset (including memory and registers)&emsp;<span className="rounded text-muted-foreground tracking-widest ml-auto">Ctrl+Shift+R</span>
           </TooltipContent>
         </Tooltip>
       </ButtonGroup>

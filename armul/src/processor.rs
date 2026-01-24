@@ -930,7 +930,7 @@ impl Processor {
         // Auto-align the address.
         address = address >> 2 << 2;
 
-        println!("Block transfer: {kind:?} pos={offset_positive} pre={pre_index}");
+        // println!("Block transfer: {kind:?} pos={offset_positive} pre={pre_index}");
 
         let mode = if psr && !(kind == TransferKind::Load && registers & (1 << 15) != 0) {
             Mode::Usr
@@ -951,7 +951,7 @@ impl Processor {
                 address = address.wrapping_add(4);
             }
 
-            println!("Address is {address:0>8X}, register {register:?}");
+            // println!("Address is {address:0>8X}, register {register:?}");
 
             match kind {
                 TransferKind::Store => {

@@ -236,6 +236,11 @@ fn reset(state: tauri::State<'_, MyStateLock>, hard: bool) {
     }
 }
 
+#[tauri::command]
+fn hit_breakpoint(state: tauri::State<'_, MyStateLock>) {
+    state.0.write().info.state = Err("Hit breakpoint".to_owned());
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -249,6 +254,7 @@ pub fn run() {
             step_once,
             processor_info,
             reset,
+            hit_breakpoint,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

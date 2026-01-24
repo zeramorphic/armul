@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import * as processor from "./lib/processor";
-import { LineInfo } from "./lib/serde-types";
+import { LineInfo, Registers } from "./lib/serde-types";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from '@tauri-apps/plugin-dialog';
 import { toast } from "sonner";
@@ -243,10 +243,17 @@ function play(processor: processor.Processor, dispatch: AppDispatch): () => void
       const nextUserInput: string | undefined = await invoke('step_once');
       if (nextUserInput !== undefined) newUserInput = nextUserInput;
 
-      // Check if the processor is now stopped.
+      // Check if the processor is now stopped or at a breakpoint.
       const info: processor.ProcessorInformation = await invoke('processor_info');
       if (!('Ok' in info.state) || info.state.Ok != "Running") {
         shouldStop = true;
+        break;
+      }
+
+      const registers: Registers = await invoke('registers');
+      if (processor.breakpoints.has(registers.regs[15])) {
+        shouldStop = true;
+        await invoke('hit_breakpoint');
         break;
       }
     }
