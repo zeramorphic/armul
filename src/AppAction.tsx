@@ -6,6 +6,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { toast } from "sonner";
 import { AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./components/ui/alert-dialog";
 import { path } from "@tauri-apps/api";
+import { LazyStore } from "@tauri-apps/plugin-store";
 
 export interface AppState {
   processor: processor.Processor,
@@ -103,11 +104,21 @@ interface Reset {
   dispatch: AppDispatch,
 }
 
-async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, errorDialog: (contents: ReactNode) => void) {
+async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, store: LazyStore, errorDialog: (contents: ReactNode) => void) {
+  const recentFiles: string[] = await store.get('recentFiles') ?? [];
+  console.log(recentFiles);
+
   const filePath = await open({
-    filters: [{ name: "Assembly file (.s)", extensions: ['s', 'S'] }]
+    filters: [{ name: "Assembly file (.s)", extensions: ['s', 'S'] }],
+    defaultPath: recentFiles[0]
   });
   if (!filePath) return;
+
+  // Add the file to the list of recent files if it's not already there.
+  const newFiles = recentFiles.filter(value => value !== filePath);
+  newFiles.unshift(filePath);
+  await store.set('recentFiles', newFiles);
+
   const baseName = await path.basename(filePath);
 
   const loadProgram = async () => {
@@ -141,6 +152,7 @@ async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch,
 export function performAction(
   appState: AppState,
   action: AppAction,
+  store: LazyStore,
   errorDialog: (contents: ReactNode) => void,
 ): AppState {
   console.log("Dispatching", action.type);
@@ -167,7 +179,7 @@ export function performAction(
       })();
       return appState;
     case "open_file":
-      performOpenFile(appState.processor, action.dispatch, errorDialog);
+      performOpenFile(appState.processor, action.dispatch, store, errorDialog);
       return appState;
     case "open_file_resolve":
       return {

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useContext, useEffect, useState } from "react";
 import "./App.css";
 import { Menu } from "./components/my/Menu";
 import { Toaster } from "./components/ui/sonner";
@@ -11,6 +11,7 @@ import { DispatchContext } from "./lib/DispatchContext";
 import { AlertDialog, AlertDialogContent } from "./components/ui/alert-dialog";
 import TabLayout from "./components/my/TabLayout";
 import { AppAction, AppDispatch, newAppState, performAction } from "./AppAction";
+import { StoreContext } from "./lib/StoreContext";
 
 const actionQueue: AppAction[] = [];
 
@@ -27,20 +28,20 @@ export default function App() {
     setActionsPending(true);
   };
 
+  const store = useContext(StoreContext);
+
   useEffect(() => {
     if (actionsPending) {
       // Using .reduce here is a little dodgy because we might be pushing to the actionQueue at the same time we're traversing it.
       // To combat this, we loop, popping from the queue and then executing. This fixes any concurrent modification problems.
       var intermediateState = state;
       while (true) {
-        const removed = actionQueue.splice(0, 1);
-        if (removed.length === 0) {
+        const action = actionQueue.shift();
+        if (action === undefined) {
           break;
         }
-        for (const action of removed) {
-          intermediateState = performAction(intermediateState, action,
-            (err) => { alertSetOpen(true); alertSetContents(err); })
-        }
+        intermediateState = performAction(intermediateState, action, store,
+          (err) => { alertSetOpen(true); alertSetContents(err); })
       }
       setState(intermediateState);
       setActionsPending(false);
