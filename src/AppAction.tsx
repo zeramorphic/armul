@@ -35,7 +35,8 @@ export type AppAction
   | ToggleBreakpoint
   | SetPlaying
   | SimulationSpeed
-  | Reset;
+  | Reset
+  | Alert;
 
 export type AppDispatch = (action: AppAction) => void;
 
@@ -104,6 +105,11 @@ interface Reset {
   dispatch: AppDispatch,
 }
 
+interface Alert {
+  type: "alert",
+  contents: ReactNode,
+}
+
 async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, store: LazyStore, errorDialog: (contents: ReactNode) => void) {
   const recentFiles: string[] = await store.get('recentFiles') ?? [];
 
@@ -114,7 +120,7 @@ async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch,
   if (!filePath) return;
 
   // Add the file to the list of recent files if it's not already there.
-  const newFiles = recentFiles.filter(value => value !== filePath);
+  const newFiles = recentFiles.filter(value => value !== filePath).slice(0, 10);
   newFiles.unshift(filePath);
   await store.set('recentFiles', newFiles);
 
@@ -235,6 +241,9 @@ export function performAction(
         await invoke('reset', { 'hard': action.hard });
         action.dispatch({ type: "request_processor_update", dispatch: action.dispatch, callback() { } });
       })();
+      return appState;
+    case "alert":
+      errorDialog(action.contents);
       return appState;
   }
 }
