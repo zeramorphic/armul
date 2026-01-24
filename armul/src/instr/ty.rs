@@ -48,7 +48,9 @@ impl Display for Register {
 }
 
 /// A condition to execute an instruction on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, FromPrimitive, Serialize_repr,
+)]
 #[repr(u8)]
 pub enum Cond {
     /// Z set (equal)

@@ -2,10 +2,11 @@ use std::path::Path;
 
 use armul::{
     assemble::{assemble, AssemblerOutput},
-    instr::{LineInfo, Register},
+    instr::{Cond, LineInfo, Register},
     processor::{Processor, ProcessorListener, ProcessorState},
     registers::Registers,
 };
+use num::FromPrimitive;
 use parking_lot::RwLock;
 use serde::Serialize;
 
@@ -17,6 +18,16 @@ struct MyState {
     processor: Processor,
     info: ProcessorInformation,
     user_input: String,
+}
+
+impl MyState {
+    pub fn update_cond(&mut self) {
+        let current_instruction = self
+            .processor
+            .memory()
+            .get_word_aligned(self.processor.registers().get(Register::R15));
+        self.info.current_cond = Cond::from_u32(current_instruction >> 28).unwrap_or(Cond::AL);
+    }
 }
 
 #[derive(Default)]
@@ -64,6 +75,7 @@ async fn load_program(
         || path.to_string_lossy().to_string(),
         |base| base.to_string_lossy().to_string(),
     ));
+    state.update_cond();
     Ok(())
 }
 
@@ -92,6 +104,7 @@ pub struct ProcessorInformation {
     file: String,
     state: Result<ProcessorState, String>,
     previous_pc: u32,
+    current_cond: Cond,
 
     steps: usize,
     nonseq_cycles: usize,
@@ -115,6 +128,7 @@ impl ProcessorInformation {
             file,
             state: Ok(Default::default()),
             previous_pc: 0,
+            current_cond: Cond::AL,
             steps: Default::default(),
             nonseq_cycles: Default::default(),
             seq_cycles: Default::default(),
@@ -208,6 +222,7 @@ fn step_once(state: tauri::State<'_, MyStateLock>) -> Option<String> {
             state.info.state = Err(err.to_string());
         }
     }
+    state.update_cond();
     if input_used {
         Some(state.user_input.clone())
     } else {
@@ -234,6 +249,8 @@ fn reset(state: tauri::State<'_, MyStateLock>, hard: bool) {
         // Soft resets just put the PC back to 0.
         state.processor.registers_mut().set(Register::R15, 0);
     }
+
+    state.update_cond();
 }
 
 #[tauri::command]

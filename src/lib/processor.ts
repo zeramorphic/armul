@@ -29,6 +29,8 @@ export interface ProcessorInformation {
     file: string,
     state: ProcessorState,
     previous_pc: number,
+    /** A condition code as a number 0..=15. */
+    current_cond: number,
 
     steps: number,
     nonseq_cycles: number,
@@ -48,6 +50,7 @@ export function newProcessor(): Processor {
             file: 'unknown',
             state: { 'Ok': 'Stopped' },
             previous_pc: 0,
+            current_cond: 0,
             steps: 0, nonseq_cycles: 0, seq_cycles: 0, internal_cycles: 0,
             output: "",
         },
