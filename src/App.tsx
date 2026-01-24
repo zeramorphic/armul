@@ -29,11 +29,20 @@ export default function App() {
 
   useEffect(() => {
     if (actionsPending) {
-      const finalState = actionQueue.reduce((state, action) =>
-        performAction(state, action,
-          (err) => { alertSetOpen(true); alertSetContents(err); }),
-        state);
-      setState(finalState);
+      // Using .reduce here is a little dodgy because we might be pushing to the actionQueue at the same time we're traversing it.
+      // To combat this, we loop, popping from the queue and then executing. This fixes any concurrent modification problems.
+      var intermediateState = state;
+      while (true) {
+        const removed = actionQueue.splice(0, 1);
+        if (removed.length === 0) {
+          break;
+        }
+        for (const action of removed) {
+          intermediateState = performAction(intermediateState, action,
+            (err) => { alertSetOpen(true); alertSetContents(err); })
+        }
+      }
+      setState(intermediateState);
       setActionsPending(false);
       actionQueue.length = 0;
     }

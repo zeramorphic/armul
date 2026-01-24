@@ -18,6 +18,7 @@ export interface Processor {
     registers: Registers,
     info: ProcessorInformation,
     breakpoints: Set<number>,
+    playing: boolean,
 };
 
 type ProcessorState = { 'Ok': 'Running' | 'Stopped' } | { 'Err': string };
@@ -49,11 +50,15 @@ export function newProcessor(): Processor {
             output: "",
         },
         breakpoints: new Set(),
+        playing: false,
     };
 }
 
-/** Get back in sync with the backend using Tauri calls. */
-export async function resynchronise(processor: Processor): Promise<Processor> {
+/**
+ * Get back in sync with the backend using Tauri calls.
+ * Returns an update function that can be executed on a processor (which may have since been updated!)
+ */
+export async function resynchronise(processor: Processor): Promise<(proc: Processor) => Processor> {
     const registers: Registers = await invoke('registers');
     const info: ProcessorInformation = await invoke('processor_info');
     const keys = [];
@@ -68,7 +73,7 @@ export async function resynchronise(processor: Processor): Promise<Processor> {
     for (const { addr, mem } of entries) {
         memory.set(addr, mem);
     }
-    return { ...processor, registers, memory, info }
+    return ((proc) => { return { ...proc, registers, memory, info }; });
 }
 
 /**

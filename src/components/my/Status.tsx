@@ -1,4 +1,4 @@
-import { Info, PlayIcon, RefreshCwIcon, StepBackIcon, StepForwardIcon } from "lucide-react";
+import { Info, PauseIcon, PlayIcon, RefreshCwIcon, StepForwardIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { ButtonGroup } from "../ui/button-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -16,13 +16,22 @@ async function stepOnce(processor: Processor, dispatch: AppDispatch) {
     dispatch({ type: "user_input_update", newUserInput })
   }
   const newProcessor = await resynchronise(processor);
-  dispatch({ type: "processor_update", newProcessor })
+  dispatch({ type: "processor_update", newProcessor });
+}
+
+async function play(dispatch: AppDispatch) {
+  dispatch({ type: "set_playing", playing: true, dispatch });
+}
+
+async function pause(dispatch: AppDispatch) {
+  dispatch({ type: "set_playing", playing: false, dispatch });
 }
 
 export default function Status() {
   const processor = useContext(ProcessorContext);
   const dispatch = useContext(DispatchContext);
   useHotkeys('f2', () => stepOnce(processor, dispatch));
+  useHotkeys('f5', () => { processor.playing ? pause(dispatch) : play(dispatch) });
 
   var state;
   if ('Ok' in processor.info.state) {
@@ -34,17 +43,25 @@ export default function Status() {
   return <div className="flex flex-col">
     <div className="flex flex-row p-2 justify-center">
       <ButtonGroup>
-        <Button variant="outline" className="rounded"><StepBackIcon /></Button>
-        <Button variant="outline"><PlayIcon /></Button>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="outline" onClick={() => stepOnce(processor, dispatch)}><StepForwardIcon /></Button>
+            <Button variant="outline" className="rounded" onClick={() => { processor.playing ? pause(dispatch) : play(dispatch) }}>
+              {processor.playing ? <PauseIcon /> : <PlayIcon />}
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
-            Step Once&emsp;<span className="text-muted-foreground tracking-widest ml-auto">F2</span>
+            {processor.playing ? "Pause" : "Run"}&emsp;<span className="rounded text-muted-foreground tracking-widest ml-auto">F5</span>
           </TooltipContent>
         </Tooltip>
-        <Button variant="outline" className="rounded"><RefreshCwIcon /></Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" onClick={() => stepOnce(processor, dispatch)} disabled={processor.playing}><StepForwardIcon /></Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Step Once&emsp;<span className="rounded text-muted-foreground tracking-widest ml-auto">F2</span>
+          </TooltipContent>
+        </Tooltip>
+        <Button variant="outline" className="rounded" disabled={processor.playing}><RefreshCwIcon /></Button>
       </ButtonGroup>
     </div>
     <div className="text-sm px-2">

@@ -10,25 +10,29 @@ import { path } from "@tauri-apps/api";
 export interface AppState {
   processor: processor.Processor,
   ready: boolean,
-  setUserInput: (userInput: string) => void;
+  setUserInput(userInput: string): void,
+  stopPlaying(): void,
 };
 
 export function newAppState(): AppState {
   return {
     processor: processor.newProcessor(),
     ready: false,
-    setUserInput(_) { }
+    setUserInput(_) { },
+    stopPlaying() { },
   }
 }
 
 export type AppAction
   = ProcessorRead
   | ProcessorUpdate
+  | RequestProcessorUpdate
   | OpenFile
   | OpenFileResolve
   | UserInputUpdate
   | SetUserInputCallback
-  | ToggleBreakpoint;
+  | ToggleBreakpoint
+  | SetPlaying;
 
 export type AppDispatch = (action: AppAction) => void;
 
@@ -44,7 +48,14 @@ interface ProcessorRead {
 
 interface ProcessorUpdate {
   type: "processor_update",
-  newProcessor: processor.Processor,
+  newProcessor: (proc: processor.Processor) => processor.Processor,
+}
+
+interface RequestProcessorUpdate {
+  type: "request_processor_update",
+  dispatch: AppDispatch,
+  /** The function to execute when the processor has been updated. */
+  callback(processor: processor.Processor): void,
 }
 
 interface OpenFile {
@@ -54,7 +65,7 @@ interface OpenFile {
 
 interface OpenFileResolve {
   type: "open_file_resolve",
-  newProcessor: processor.Processor,
+  newProcessor: (proc: processor.Processor) => processor.Processor,
 }
 
 interface UserInputUpdate {
@@ -70,6 +81,12 @@ interface SetUserInputCallback {
 interface ToggleBreakpoint {
   type: "toggle_breakpoint",
   address: number,
+}
+
+interface SetPlaying {
+  type: "set_playing",
+  playing: boolean,
+  dispatch: AppDispatch,
 }
 
 async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, errorDialog: (contents: ReactNode) => void) {
@@ -121,8 +138,20 @@ export function performAction(
     case "processor_update":
       return {
         ...appState,
-        processor: action.newProcessor,
+        processor: action.newProcessor(appState.processor),
       };
+    case "request_processor_update":
+      (async () => {
+        const update = await processor.resynchronise(appState.processor);
+        action.dispatch({
+          type: "processor_update", newProcessor(proc) {
+            var newProc = update(proc);
+            action.callback(newProc);
+            return newProc;
+          }
+        });
+      })();
+      return appState;
     case "open_file":
       performOpenFile(appState.processor, action.dispatch, errorDialog);
       return appState;
@@ -130,7 +159,7 @@ export function performAction(
       return {
         ...appState,
         ready: true,
-        processor: action.newProcessor,
+        processor: action.newProcessor(appState.processor),
       };
     case "user_input_update":
       appState.setUserInput(action.newUserInput);
@@ -150,5 +179,57 @@ export function performAction(
         breakpoints.add(action.address);
       }
       return { ...appState, processor: { ...appState.processor, breakpoints } }
+    case "set_playing":
+      console.log("Playing:", action.playing);
+      if (action.playing) {
+        // Spawn a new task to continuously step the processor.
+        return {
+          ...appState,
+          stopPlaying: play(appState.processor, action.dispatch),
+          processor: { ...appState.processor, playing: true },
+        }
+      } else {
+        // Stop the task that's stepping the processor.
+        appState.stopPlaying();
+        return {
+          ...appState,
+          stopPlaying() { },
+          processor: { ...appState.processor, playing: false },
+        }
+      }
   }
+}
+
+/**
+ * Spawns a task that continuously steps the processor.
+ * Returns a callback that can be invoked to stop this task.
+ */
+function play(processor: processor.Processor, dispatch: AppDispatch): () => void {
+  const status = { processor, shouldStop: false };
+
+  const singleStep = async () => {
+    // Perform a single step.
+    const newUserInput: string | undefined = await invoke('step_once');
+    if (newUserInput) {
+      dispatch({ type: "user_input_update", newUserInput })
+    }
+
+    // Request a processor update. This refreshes the UI.
+    dispatch({
+      type: "request_processor_update",
+      dispatch,
+      callback(newProcessor) {
+        processor = newProcessor;
+        // Once the processor has been updated, check the `shouldStop` flag.
+        if (!status.shouldStop) {
+          // If we don't need to stop, go again.
+          singleStep();
+        }
+      },
+    });
+  };
+
+  singleStep();
+
+  return () => { status.shouldStop = true; };
 }

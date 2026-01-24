@@ -1,4 +1,4 @@
-import { ReactNode, Ref, useContext, useRef, useState } from "react";
+import { ReactNode, useContext } from "react";
 import "./MemoryRow.css"
 import { PrettyArgument, PrettyInstr, ShiftType } from "@/lib/serde-types";
 import { ProcessorContext } from "@/lib/ProcessorContext";
