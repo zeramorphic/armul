@@ -106,7 +106,6 @@ interface Reset {
 
 async function performOpenFile(proc: processor.Processor, dispatch: AppDispatch, store: LazyStore, errorDialog: (contents: ReactNode) => void) {
   const recentFiles: string[] = await store.get('recentFiles') ?? [];
-  console.log(recentFiles);
 
   const filePath = await open({
     filters: [{ name: "Assembly file (.s)", extensions: ['s', 'S'] }],
