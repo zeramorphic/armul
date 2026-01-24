@@ -32,7 +32,9 @@ export type AppAction
   | UserInputUpdate
   | SetUserInputCallback
   | ToggleBreakpoint
-  | SetPlaying;
+  | SetPlaying
+  | SimulationSpeed
+  | Reset;
 
 export type AppDispatch = (action: AppAction) => void;
 
@@ -86,6 +88,18 @@ interface ToggleBreakpoint {
 interface SetPlaying {
   type: "set_playing",
   playing: boolean,
+  dispatch: AppDispatch,
+}
+
+interface SimulationSpeed {
+  type: "simulation_speed",
+  multiplier: number,
+}
+
+interface Reset {
+  type: "reset",
+  /** Whether a hard or soft reset was desired. */
+  hard: boolean,
   dispatch: AppDispatch,
 }
 
@@ -197,6 +211,20 @@ export function performAction(
           processor: { ...appState.processor, playing: false },
         }
       }
+    case "simulation_speed":
+      var newSpeed = appState.processor.simulation_speed * action.multiplier;
+      if (newSpeed < 1) {
+        newSpeed = 1;
+      } else if (newSpeed > 512) {
+        newSpeed = 512;
+      }
+      return { ...appState, processor: { ...appState.processor, simulation_speed: newSpeed } };
+    case "reset":
+      (async () => {
+        await invoke('reset', { 'hard': action.hard });
+        action.dispatch({ type: "request_processor_update", dispatch: action.dispatch, callback() { } });
+      })();
+      return appState;
   }
 }
 
@@ -208,10 +236,28 @@ function play(processor: processor.Processor, dispatch: AppDispatch): () => void
   const status = { processor, shouldStop: false };
 
   const singleStep = async () => {
-    // Perform a single step.
-    const newUserInput: string | undefined = await invoke('step_once');
+    // Perform a single step (or more if the simulation speed was increased).
+    var newUserInput: string | undefined = undefined;
+    var shouldStop = false;
+    for (let i = 0; i < processor.simulation_speed; i++) {
+      const nextUserInput: string | undefined = await invoke('step_once');
+      if (nextUserInput !== undefined) newUserInput = nextUserInput;
+
+      // Check if the processor is now stopped.
+      const info: processor.ProcessorInformation = await invoke('processor_info');
+      if (!('Ok' in info.state) || info.state.Ok != "Running") {
+        shouldStop = true;
+        break;
+      }
+    }
+
+    // Dispatch UI updates.
     if (newUserInput) {
       dispatch({ type: "user_input_update", newUserInput })
+    }
+    if (shouldStop) {
+      status.shouldStop = true;
+      dispatch({ type: "set_playing", dispatch, playing: false });
     }
 
     // Request a processor update. This refreshes the UI.
@@ -220,7 +266,7 @@ function play(processor: processor.Processor, dispatch: AppDispatch): () => void
       dispatch,
       callback(newProcessor) {
         processor = newProcessor;
-        // Once the processor has been updated, check the `shouldStop` flag.
+        // Once the processor has been updated, check the `shouldStop` flag and the processor's status.
         if (!status.shouldStop) {
           // If we don't need to stop, go again.
           singleStep();

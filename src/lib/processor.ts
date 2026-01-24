@@ -19,11 +19,13 @@ export interface Processor {
     info: ProcessorInformation,
     breakpoints: Set<number>,
     playing: boolean,
+    /** A multiplier for the simulation speed. */
+    simulation_speed: number,
 };
 
 type ProcessorState = { 'Ok': 'Running' | 'Stopped' } | { 'Err': string };
 
-interface ProcessorInformation {
+export interface ProcessorInformation {
     file: string,
     state: ProcessorState,
     previous_pc: number,
@@ -34,7 +36,7 @@ interface ProcessorInformation {
     internal_cycles: number,
 
     output: string,
-}
+};
 
 export function newProcessor(): Processor {
     return {
@@ -51,6 +53,7 @@ export function newProcessor(): Processor {
         },
         breakpoints: new Set(),
         playing: false,
+        simulation_speed: 1,
     };
 }
 

@@ -121,7 +121,7 @@ fn opcode_parts(instr: Instr) -> (String, String) {
     match instr {
         Instr::BranchExchange { .. } => ("BX".to_owned(), "".to_owned()),
         Instr::Branch { link: false, .. } => ("B".to_owned(), "".to_owned()),
-        Instr::Branch { link: true, .. } => ("B".to_owned(), "".to_owned()),
+        Instr::Branch { link: true, .. } => ("BL".to_owned(), "".to_owned()),
         Instr::Data {
             set_condition_codes,
             op,

@@ -379,9 +379,9 @@ impl Processor {
             DataOp::Mvn => !val2,
         };
 
-        println!(
-            "Data operation: {op} {op1}={val1} {op2}={val2} {carry} {result} (flags = {set_condition_codes})"
-        );
+        // println!(
+        //     "Data operation: {op} {op1}={val1} {op2}={val2} {carry} {result} (flags = {set_condition_codes})"
+        // );
 
         if set_condition_codes {
             if dest == Register::R15 {

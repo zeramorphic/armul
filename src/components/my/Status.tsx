@@ -1,4 +1,4 @@
-import { Info, PauseIcon, PlayIcon, RefreshCwIcon, StepForwardIcon } from "lucide-react";
+import { Info, MinusIcon, PauseIcon, PlayIcon, PlusIcon, RefreshCcwDotIcon, RefreshCcwIcon, StepForwardIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { ButtonGroup } from "../ui/button-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -11,6 +11,9 @@ import { Processor, resynchronise } from "@/lib/processor";
 import { invoke } from "@tauri-apps/api/core";
 
 async function stepOnce(processor: Processor, dispatch: AppDispatch) {
+  if (processor.playing)
+    return;
+
   const newUserInput: string | undefined = await invoke('step_once');
   if (newUserInput) {
     dispatch({ type: "user_input_update", newUserInput })
@@ -32,6 +35,8 @@ export default function Status() {
   const dispatch = useContext(DispatchContext);
   useHotkeys('f2', () => stepOnce(processor, dispatch));
   useHotkeys('f5', () => { processor.playing ? pause(dispatch) : play(dispatch) });
+  useHotkeys('-', () => dispatch({ type: "simulation_speed", multiplier: 0.5 }), { useKey: true });
+  useHotkeys('=', () => dispatch({ type: "simulation_speed", multiplier: 2 }), { useKey: true });
 
   var state;
   if ('Ok' in processor.info.state) {
@@ -61,8 +66,49 @@ export default function Status() {
             Step Once&emsp;<span className="rounded text-muted-foreground tracking-widest ml-auto">F2</span>
           </TooltipContent>
         </Tooltip>
-        <Button variant="outline" className="rounded" disabled={processor.playing}><RefreshCwIcon /></Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" className="rounded" disabled={processor.playing} onClick={() => dispatch({ type: "reset", hard: false, dispatch })}><RefreshCcwIcon /></Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Soft reset (preserving memory and registers)
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" className="rounded" disabled={processor.playing} onClick={() => dispatch({ type: "reset", hard: true, dispatch })}><RefreshCcwDotIcon /></Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            Hard reset (including memory and registers)
+          </TooltipContent>
+        </Tooltip>
       </ButtonGroup>
+    </div>
+    <div className="flex flex-row p-2 pt-0 justify-center">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline" className="rounded-l" onClick={() => dispatch({ type: "simulation_speed", multiplier: 0.5 })}><MinusIcon className="size-3" /></Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          Slow down simulation&emsp;<span className="rounded text-muted-foreground tracking-widest ml-auto">-</span>
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="w-11 grid place-items-center text-sm">{processor.simulation_speed}&#xd7;</div>
+        </TooltipTrigger>
+        <TooltipContent>
+          Speed of the simulation
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline" className="rounded-r" onClick={() => dispatch({ type: "simulation_speed", multiplier: 2.0 })}><PlusIcon className="size-3" /></Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          Speed up simulation&emsp;<span className="rounded text-muted-foreground tracking-widest ml-auto">=</span>
+        </TooltipContent>
+      </Tooltip>
     </div>
     <div className="text-sm px-2">
       <div className="flex">

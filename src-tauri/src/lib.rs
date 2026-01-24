@@ -122,6 +122,13 @@ impl ProcessorInformation {
             output: Default::default(),
         }
     }
+
+    pub fn reset(&mut self) {
+        *self = Self {
+            file: std::mem::take(&mut self.file),
+            ..Default::default()
+        }
+    }
 }
 
 #[tauri::command]
@@ -208,6 +215,27 @@ fn step_once(state: tauri::State<'_, MyStateLock>) -> Option<String> {
     }
 }
 
+#[tauri::command]
+fn reset(state: tauri::State<'_, MyStateLock>, hard: bool) {
+    let mut guard = state.0.write();
+    let state = &mut *guard;
+
+    state.info.reset();
+    if hard {
+        // Hard resets put everything (even memory) back to where it was at the start.
+        state.processor = Processor::default();
+        if let Some(assembled) = state.assembled.as_ref() {
+            state
+                .processor
+                .memory_mut()
+                .set_words_aligned(0, &assembled.instrs);
+        }
+    } else {
+        // Soft resets just put the PC back to 0.
+        state.processor.registers_mut().set(Register::R15, 0);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -219,7 +247,8 @@ pub fn run() {
             registers,
             set_user_input,
             step_once,
-            processor_info
+            processor_info,
+            reset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
