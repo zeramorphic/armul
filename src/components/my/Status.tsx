@@ -47,6 +47,18 @@ export default function Status() {
     state = <span className="text-destructive">{processor.info.state.Err}</span>;
   }
 
+  var simulationSpeed =
+    processor.simulation_speed >= 1024 * 1024 ? `${processor.simulation_speed / (1024 * 1024)}M`
+    : processor.simulation_speed >= 1024 ? `${processor.simulation_speed / 1024}k`
+    : processor.simulation_speed.toString();
+
+  const steps = processor.info.steps.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const procMicroseconds = ((processor.info.nonseq_cycles * 2 + processor.info.seq_cycles + processor.info.internal_cycles) / 100);
+  const procTime =
+    procMicroseconds > 1_000_000 ? `${(procMicroseconds / 1_000_000).toFixed(2)}`
+    : procMicroseconds > 1_000 ? `${(procMicroseconds / 1_000).toFixed(2)}m`
+    : `${procMicroseconds.toFixed(2)}µ`;
+
   return <div className="flex flex-col">
     <div className="flex flex-row p-2 justify-center">
       <ButtonGroup>
@@ -97,7 +109,7 @@ export default function Status() {
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="w-11 grid place-items-center text-sm">{processor.simulation_speed}&#xd7;</div>
+          <div className="w-11 grid place-items-center text-sm">{simulationSpeed}&#xd7;</div>
         </TooltipTrigger>
         <TooltipContent>
           Speed of the simulation
@@ -133,7 +145,7 @@ export default function Status() {
           </TooltipContent>
         </Tooltip>
         <div className="flex-1"></div>
-        <div className="font-mono">{processor.info.steps}</div>
+        <div className="font-mono">{steps}</div>
       </div>
       <div className="flex">
         <Tooltip>
@@ -145,7 +157,7 @@ export default function Status() {
           </TooltipContent>
         </Tooltip>
         <div className="flex-1"></div>
-        <div className="font-mono">~{((processor.info.nonseq_cycles * 2 + processor.info.seq_cycles + processor.info.internal_cycles) / 100).toFixed(2)}&micro;s</div>
+        <div className="font-mono">~{procTime}s</div>
       </div>
     </div>
   </div>;

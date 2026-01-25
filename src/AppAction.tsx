@@ -234,8 +234,8 @@ export function performAction(
       var newSpeed = appState.processor.simulation_speed * action.multiplier;
       if (newSpeed < 1) {
         newSpeed = 1;
-      } else if (newSpeed > 512) {
-        newSpeed = 512;
+      } else if (newSpeed > (1 << 20)) {
+        newSpeed = 1 << 20;
       }
       return { ...appState, processor: { ...appState.processor, simulation_speed: newSpeed } };
     case "reset":
