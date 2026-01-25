@@ -49,6 +49,10 @@ impl Processor {
         self.state
     }
 
+    pub fn set_running(&mut self) {
+        self.state = ProcessorState::Running;
+    }
+
     pub fn poll(&mut self) -> ProcessorResult {
         todo!()
     }

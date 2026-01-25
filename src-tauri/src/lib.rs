@@ -259,8 +259,9 @@ fn reset(state: tauri::State<'_, MyStateLock>, hard: bool) {
                 .set_words_aligned(0, &assembled.instrs);
         }
     } else {
-        // Soft resets just put the PC back to 0.
+        // Soft resets just put the PC back to 0 and set Running state.
         state.processor.registers_mut().set(Register::R15, 0);
+        state.processor.set_running();
     }
 
     state.update_cond();
