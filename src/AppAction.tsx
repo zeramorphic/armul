@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import * as processor from "./lib/processor";
-import { LineInfo, Registers } from "./lib/serde-types";
+import { LineInfo } from "./lib/serde-types";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from '@tauri-apps/plugin-dialog';
 import { toast } from "sonner";
@@ -205,8 +205,10 @@ export function performAction(
     case "toggle_breakpoint":
       const breakpoints = new Set(appState.processor.breakpoints);
       if (breakpoints.has(action.address)) {
+        invoke('breakpoint', { addr: action.address, set: false });
         breakpoints.delete(action.address);
       } else {
+        invoke('breakpoint', { addr: action.address, set: true });
         breakpoints.add(action.address);
       }
       return { ...appState, processor: { ...appState.processor, breakpoints } }
@@ -259,23 +261,14 @@ function play(processor: processor.Processor, dispatch: AppDispatch): () => void
     // Perform a single step (or more if the simulation speed was increased).
     var newUserInput: string | undefined = undefined;
     var shouldStop = false;
-    for (let i = 0; i < processor.simulation_speed; i++) {
-      const nextUserInput: string | undefined = await invoke('step_once');
-      if (nextUserInput !== undefined) newUserInput = nextUserInput;
 
-      // Check if the processor is now stopped or at a breakpoint.
-      const info: processor.ProcessorInformation = await invoke('processor_info');
-      if (!('Ok' in info.state) || info.state.Ok != "Running") {
-        shouldStop = true;
-        break;
-      }
+    const nextUserInput: string | undefined = await invoke('step_times', {steps: processor.simulation_speed});
+    if (nextUserInput !== undefined) newUserInput = nextUserInput;
 
-      const registers: Registers = await invoke('registers');
-      if (processor.breakpoints.has(registers.regs[15])) {
-        shouldStop = true;
-        await invoke('hit_breakpoint');
-        break;
-      }
+    // Check if the processor is now stopped.
+    const info: processor.ProcessorInformation = await invoke('processor_info');
+    if (!('Ok' in info.state) || info.state.Ok != "Running") {
+      shouldStop = true;
     }
 
     // Dispatch UI updates.

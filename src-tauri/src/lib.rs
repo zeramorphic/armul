@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::BTreeSet, path::Path};
 
 use armul::{
     assemble::{assemble, AssemblerOutput},
@@ -18,6 +18,7 @@ struct MyState {
     processor: Processor,
     info: ProcessorInformation,
     user_input: String,
+    breakpoints: BTreeSet<u32>,
 }
 
 impl MyState {
@@ -187,42 +188,54 @@ impl<'a> ProcessorListener for TauriProcessorListener<'a> {
 
 /// Returns the new user input field, if it was changed.
 #[tauri::command]
-fn step_once(state: tauri::State<'_, MyStateLock>) -> Option<String> {
+fn step_times(state: tauri::State<'_, MyStateLock>, steps: usize) -> Option<String> {
     let mut guard = state.0.write();
     let state = &mut *guard;
-    state.info.previous_pc = state.processor.registers().get(Register::R15);
+    let mut input_used = false;
 
-    // Save some of the old info.
-    let old_n = state.info.nonseq_cycles;
-    let old_s = state.info.seq_cycles;
-    let old_i = state.info.internal_cycles;
+    for _ in 0..steps {
+        state.info.previous_pc = state.processor.registers().get(Register::R15);
 
-    let mut listener = TauriProcessorListener {
-        info: &mut state.info,
-        user_input: &mut state.user_input,
-        input_used: false,
-    };
-    let input_used;
-    match state.processor.try_execute(&mut listener) {
-        Ok(()) => {
-            input_used = listener.input_used;
-            state.info.state = Ok(state.processor.state());
+        // Save some of the old info.
+        let old_n = state.info.nonseq_cycles;
+        let old_s = state.info.seq_cycles;
+        let old_i = state.info.internal_cycles;
 
-            // Advance the program counter and log that we've done a step.
-            state.info.steps += 1;
-            *state.processor.registers_mut().get_mut(Register::R15) += 4;
+        let mut listener = TauriProcessorListener {
+            info: &mut state.info,
+            user_input: &mut state.user_input,
+            input_used: false,
+        };
+        match state.processor.try_execute(&mut listener) {
+            Ok(()) => {
+                input_used |= listener.input_used;
+
+                // Advance the program counter and log that we've done a step.
+                state.info.steps += 1;
+                *state.processor.registers_mut().get_mut(Register::R15) += 4;
+
+                if state
+                    .breakpoints
+                    .contains(&state.processor.registers().get(Register::R15))
+                {
+                    state.info.state = Err("Hit breakpoint".to_string());
+                } else {
+                    state.info.state = Ok(state.processor.state());
+                }
+            }
+            Err(err) => {
+                input_used |= listener.input_used;
+                // Reset the old info because we didn't complete a step.
+                state.info.nonseq_cycles = old_n;
+                state.info.seq_cycles = old_s;
+                state.info.internal_cycles = old_i;
+
+                state.info.state = Err(err.to_string());
+            }
         }
-        Err(err) => {
-            input_used = listener.input_used;
-            // Reset the old info because we didn't complete a step.
-            state.info.nonseq_cycles = old_n;
-            state.info.seq_cycles = old_s;
-            state.info.internal_cycles = old_i;
-
-            state.info.state = Err(err.to_string());
-        }
+        state.update_cond();
     }
-    state.update_cond();
+
     if input_used {
         Some(state.user_input.clone())
     } else {
@@ -254,8 +267,12 @@ fn reset(state: tauri::State<'_, MyStateLock>, hard: bool) {
 }
 
 #[tauri::command]
-fn hit_breakpoint(state: tauri::State<'_, MyStateLock>) {
-    state.0.write().info.state = Err("Hit breakpoint".to_owned());
+fn breakpoint(state: tauri::State<'_, MyStateLock>, addr: u32, set: bool) {
+    if set {
+        state.0.write().breakpoints.insert(addr);
+    } else {
+        state.0.write().breakpoints.remove(&addr);
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -270,10 +287,10 @@ pub fn run() {
             line_at,
             registers,
             set_user_input,
-            step_once,
+            step_times,
             processor_info,
             reset,
-            hit_breakpoint,
+            breakpoint,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

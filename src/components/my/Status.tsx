@@ -14,7 +14,7 @@ async function stepOnce(processor: Processor, dispatch: AppDispatch) {
   if (processor.playing)
     return;
 
-  const newUserInput: string | undefined = await invoke('step_once');
+  const newUserInput: string | undefined = await invoke('step_times', { steps: 1 });
   if (newUserInput) {
     dispatch({ type: "user_input_update", newUserInput })
   }
@@ -33,12 +33,12 @@ async function pause(dispatch: AppDispatch) {
 export default function Status() {
   const processor = useContext(ProcessorContext);
   const dispatch = useContext(DispatchContext);
-  useHotkeys('f2', () => stepOnce(processor, dispatch));
-  useHotkeys('f5', () => { processor.playing ? pause(dispatch) : play(dispatch) });
+  useHotkeys('f2', () => stepOnce(processor, dispatch), { preventDefault: true });
+  useHotkeys('f5', () => { processor.playing ? pause(dispatch) : play(dispatch) }, { preventDefault: true });
   useHotkeys('-', () => dispatch({ type: "simulation_speed", multiplier: 0.5 }), { useKey: true });
   useHotkeys('=', () => dispatch({ type: "simulation_speed", multiplier: 2 }), { useKey: true });
-  useHotkeys('ctrl+r', () => dispatch({ type: "reset", hard: false, dispatch }));
-  useHotkeys('ctrl+shift+r', () => dispatch({ type: "reset", hard: true, dispatch }));
+  useHotkeys('ctrl+r', () => dispatch({ type: "reset", hard: false, dispatch }), { preventDefault: true });
+  useHotkeys('ctrl+shift+r', () => dispatch({ type: "reset", hard: true, dispatch }), { preventDefault: true });
 
   var state;
   if ('Ok' in processor.info.state) {
