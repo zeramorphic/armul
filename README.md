@@ -1,6 +1,8 @@
-# Tauri + React + Typescript
+# ARMUL: ARM7 emulator
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+ARMUL is an ARM7TDMI emulator and graphical debugger.
+The program was inspired by the [Komodo](https://studentnet.cs.manchester.ac.uk/resources/software/komodo/) software developed by Charlie Brej and Jim Garside.
+Please send any issues or bug reports to the [issue tracker](https://github.com/zeramorphic/armul/issues).
 
 ## Setup
 
